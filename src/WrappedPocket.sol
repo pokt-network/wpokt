@@ -17,7 +17,7 @@ contract WrappedPocket is ERC20, ERC20Burnable, Pausable, AccessControl, ERC20Pe
     uint256 public feeBasis;
     address public feeCollector;
 
-    mapping (address => uint256) private _userNonces;
+    mapping(address => uint256) private _userNonces;
 
     event FeeSet(bool indexed flag, uint256 indexed newFeeBasis, address indexed feeCollector);
     event FeeCollected(address indexed feeCollector, uint256 indexed amount);
@@ -36,15 +36,31 @@ contract WrappedPocket is ERC20, ERC20Burnable, Pausable, AccessControl, ERC20Pe
         _grantRole(MINTER_ROLE, msg.sender);
     }
 
+    /**
+     * @notice Pause the contract functions. Can only be called by an account with the `PAUSER_ROLE`.
+     */
     function pause() public onlyRole(PAUSER_ROLE) {
         _pause();
     }
 
+    /**
+     * @notice Unpause the contract functions. Can only be called by an account with the `PAUSER_ROLE`.
+     */
     function unpause() public onlyRole(PAUSER_ROLE) {
         _unpause();
     }
 
-    function batchMint(address[] calldata to, uint256[] calldata amount, uint256[] calldata nonce) public onlyRole(MINTER_ROLE) {
+    /**
+     * @notice Mints tokens in batches to multiple addresses.
+     * Can only be called by an account with the `MINTER_ROLE`.
+     * @param to An array of addresses to mint tokens to.
+     * @param amount An array of amounts to mint for each address.
+     * @param nonce An array of nonces associated with each address.
+     */
+    function batchMint(address[] calldata to, uint256[] calldata amount, uint256[] calldata nonce)
+        public
+        onlyRole(MINTER_ROLE)
+    {
         if (to.length != amount.length || to.length != nonce.length) {
             revert BatchMintLength();
         }
@@ -53,11 +69,22 @@ contract WrappedPocket is ERC20, ERC20Burnable, Pausable, AccessControl, ERC20Pe
         }
     }
 
+    /**
+     * @notice Burn tokens from the caller's account and emits an event for bridging the amount to the Pocket blockchain.
+     * @param amount The amount of tokens to burn.
+     * @param poktAddress The recipient address on the Pocket blockchain.
+     */
     function burnAndBridge(uint256 amount, address poktAddress) public {
         _burn(msg.sender, amount);
         emit BurnAndBridge(amount, poktAddress, msg.sender);
     }
 
+    /**
+     * @notice Internal function to mint tokens from a batch.
+     * @param to The address to mint tokens to.
+     * @param amount The amount of tokens to mint.
+     * @param nonce The nonce associated with the address.
+     */
     function _mintBatch(address to, uint256 amount, uint256 nonce) private {
         uint256 currentNonce = _userNonces[to];
         if (nonce != currentNonce + 1) {
@@ -70,6 +97,13 @@ contract WrappedPocket is ERC20, ERC20Burnable, Pausable, AccessControl, ERC20Pe
         _mint(to, amount);
     }
 
+    /**
+     * @notice Mints tokens to a specific address.
+     * Can only be called by an account with the `MINTER_ROLE`.
+     * @param to The address to mint tokens to.
+     * @param amount The amount of tokens to mint.
+     * @param nonce The nonce associated with the address.
+     */
     function mint(address to, uint256 amount, uint256 nonce) public onlyRole(MINTER_ROLE) {
         uint256 currentNonce = _userNonces[to];
         if (nonce != currentNonce + 1) {
@@ -82,6 +116,11 @@ contract WrappedPocket is ERC20, ERC20Burnable, Pausable, AccessControl, ERC20Pe
         _mint(to, amount);
     }
 
+    /**
+     * @notice Collects a fee from the minting operation.
+     * @param amount The amount of tokens minted.
+     * @return The net amount after fee deduction.
+     */
     function _collectFee(uint256 amount) internal returns (uint256) {
         if (amount % BASIS_POINTS != 0) {
             revert FeeBasisDust();
@@ -92,6 +131,12 @@ contract WrappedPocket is ERC20, ERC20Burnable, Pausable, AccessControl, ERC20Pe
         return amount - fee;
     }
 
+    /**
+     * @notice Set the fee parameters. Can only be called by an account with the `DEFAULT_ADMIN_ROLE`.
+     * @param flag Boolean indicating if fee is enabled or not.
+     * @param newFee The new fee basis points.
+     * @param newCollector The address where collected fee will be sent.
+     */
     function setFee(bool flag, uint256 newFee, address newCollector) public onlyRole(DEFAULT_ADMIN_ROLE) {
         if (newCollector == address(0)) {
             revert FeeCollectorZero();
@@ -105,18 +150,28 @@ contract WrappedPocket is ERC20, ERC20Burnable, Pausable, AccessControl, ERC20Pe
         emit FeeSet(flag, newFee, newCollector);
     }
 
-    function _beforeTokenTransfer(address from, address to, uint256 amount)
-        internal
-        whenNotPaused
-        override
-    {
+    /**
+     * @notice Hook that is called before any token transfer including mints and burns.
+     * @param from The sender address.
+     * @param to The recipient address.
+     * @param amount The amount of tokens to transfer.
+     */
+    function _beforeTokenTransfer(address from, address to, uint256 amount) internal override whenNotPaused {
         super._beforeTokenTransfer(from, to, amount);
     }
 
+    /**
+     * @notice Burns tokens. This function is blocked and cannot be called.
+     */
     function burn(uint256) public pure override {
         revert BlockBurn();
     }
 
+    /**
+     * @notice Get the current nonce for a user.
+     * @param user The user's address.
+     * @return The current nonce of the user.
+     */
     function getUserNonce(address user) public view returns (uint256) {
         return _userNonces[user];
     }

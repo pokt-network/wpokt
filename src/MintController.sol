@@ -2,7 +2,6 @@
 pragma solidity ^0.8.9;
 
 interface IWPokt {
-
     function batchMint(address[] calldata recipients, uint256[] calldata amounts, uint256[] calldata nonces) external;
 
     function mint(address recipient, uint256 amount, uint256 nonce) external;
@@ -11,10 +10,9 @@ interface IWPokt {
 }
 
 contract MintController {
-
     bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;
 
-    IWPokt immutable public wPokt;
+    IWPokt public immutable wPokt;
 
     constructor(address _wPokt) {
         wPokt = IWPokt(_wPokt);
@@ -24,5 +22,4 @@ contract MintController {
         require(wPokt.hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "MintController: caller is not admin");
         _;
     }
-
 }
