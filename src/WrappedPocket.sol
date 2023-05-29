@@ -44,7 +44,7 @@ contract WrappedPocket is ERC20, ERC20Burnable, Pausable, AccessControl, ERC20Pe
         _unpause();
     }
 
-    function batchMint(address[] memory to, uint256[] memory amount, uint256[] memory nonce) public onlyRole(MINTER_ROLE) {
+    function batchMint(address[] calldata to, uint256[] calldata amount, uint256[] calldata nonce) public onlyRole(MINTER_ROLE) {
         if (to.length != amount.length || to.length != nonce.length) {
             revert BatchMintLength();
         }
