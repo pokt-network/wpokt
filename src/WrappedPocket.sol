@@ -64,6 +64,7 @@ contract WrappedPocket is ERC20, ERC20Burnable, Pausable, AccessControl, ERC20Pe
         if (to.length != amount.length || to.length != nonce.length) {
             revert BatchMintLength();
         }
+
         for (uint256 i = 0; i < to.length; i++) {
             _mintBatch(to[i], amount[i], nonce[i]);
         }
@@ -87,12 +88,15 @@ contract WrappedPocket is ERC20, ERC20Burnable, Pausable, AccessControl, ERC20Pe
      */
     function _mintBatch(address to, uint256 amount, uint256 nonce) private {
         uint256 currentNonce = _userNonces[to];
+
         if (nonce != currentNonce + 1) {
             revert UserNonce(to, nonce);
         }
+
         if (feeFlag == true) {
             amount = _collectFee(amount);
         }
+
         _userNonces[to] = nonce;
         _mint(to, amount);
     }
@@ -106,12 +110,15 @@ contract WrappedPocket is ERC20, ERC20Burnable, Pausable, AccessControl, ERC20Pe
      */
     function mint(address to, uint256 amount, uint256 nonce) public onlyRole(MINTER_ROLE) {
         uint256 currentNonce = _userNonces[to];
+
         if (nonce != currentNonce + 1) {
             revert UserNonce(to, nonce);
         }
+
         if (feeFlag == true) {
             amount = _collectFee(amount);
         }
+
         _userNonces[to] = nonce;
         _mint(to, amount);
     }
@@ -125,6 +132,7 @@ contract WrappedPocket is ERC20, ERC20Burnable, Pausable, AccessControl, ERC20Pe
         if (amount % BASIS_POINTS != 0) {
             revert FeeBasisDust();
         }
+
         uint256 fee = (amount * feeBasis) / BASIS_POINTS;
         emit FeeCollected(feeCollector, fee);
         _mint(feeCollector, fee);
@@ -141,9 +149,11 @@ contract WrappedPocket is ERC20, ERC20Burnable, Pausable, AccessControl, ERC20Pe
         if (newCollector == address(0)) {
             revert FeeCollectorZero();
         }
+
         if (newFee > MAX_FEE_BASIS) {
             revert MaxBasis();
         }
+
         feeBasis = newFee;
         feeFlag = flag;
         feeCollector = newCollector;
