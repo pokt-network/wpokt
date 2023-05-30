@@ -94,3 +94,15 @@ A helper function used to calculate the current mint limit based on the cooldown
 
 This contract ensures that the supply of wPOKT tokens can be expanded in a controlled manner, by the address with the copper role, while preventing abuse through the mint cooldown mechanism.
 
+---
+
+# Tips
+
+- The contracts are designed to use one source of truth as to the administrator of the protocol.  The DEFAULT_ADMIN_ROLE account set on the WrappedPocket token contract is the administrator of the MintController too.
+- The DEFAULT_ADMIN_ROLE should always be a secure multisig with trusted Pocket Foundation and Pocket Community members as signers.
+- The MintController is a separate contract because it enables the minting mechanism controller to be very simply upgraded.
+- In order to upgrade the MintController; simply deploy a new version or type of the MintController contract - and call `grantRole(MINTER_ROLE, newMintControllerAddress)` on the Wrapped Pocket token contract from the DEFAULT_ADMIN_ROLE multisig.
+- After upgrading the MintController; you should also call `revokeRole(MINTER_ROLE, oldMintControllerAddress)` in order to revoke MINTER_ROLE from the old contract.
+- If you don't want to update the MintController contract; but you would like to change the account address which initiates the minting transactions you can call `setCopper(newMintingWalletAddress)` from the DEFAULT_ADMIN_ROLE multisig.
+- There's a userNonce mapping in the Wrapped Token contract which will block any erroneous minting attempt from the backend.
+- The userNonce is also helpful to prevent replay attacks in the case of upgrading to purely signature based minting.
