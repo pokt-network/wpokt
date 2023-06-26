@@ -105,4 +105,4 @@ This contract ensures that the supply of wPOKT tokens can be expanded in a contr
 - After upgrading the MintController; you should also call `revokeRole(MINTER_ROLE, oldMintControllerAddress)` in order to revoke MINTER_ROLE from the old contract.
 - If you don't want to update the MintController contract; but you would like to change the account address which initiates the minting transactions you can call `setCopper(newMintingWalletAddress)` from the DEFAULT_ADMIN_ROLE multisig.
 - There's a userNonce mapping in the Wrapped Token contract which will block any erroneous minting attempt from the backend.
-- The userNonce is also helpful to prevent replay attacks in the case of upgrading to purely signature based minting.
+
