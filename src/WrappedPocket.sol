@@ -8,6 +8,7 @@ import "openzeppelin-contracts/contracts/access/AccessControl.sol";
 import "openzeppelin-contracts/contracts/token/ERC20/extensions/ERC20Permit.sol";
 
 contract WrappedPocket is ERC20, ERC20Burnable, Pausable, AccessControl, ERC20Permit {
+
     /*//////////////////////////////////////////////////////////////
     // Immutable storage
     //////////////////////////////////////////////////////////////*/
@@ -225,6 +226,10 @@ contract WrappedPocket is ERC20, ERC20Burnable, Pausable, AccessControl, ERC20Pe
     /*//////////////////////////////////////////////////////////////
     // Overrides
     //////////////////////////////////////////////////////////////*/
+
+    function decimals() public view virtual override returns (uint8) {
+        return 6;
+    }
 
     /**
      * @notice Hook that is called before any token transfer including mints and burns.
