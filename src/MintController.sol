@@ -33,6 +33,7 @@ contract MintController {
     //////////////////////////////////////////////////////////////*/
 
     error OverMintLimit();
+    error NonAdmin();
 
     event MintCooldownSet(uint256 newLimit, uint256 newCooldown);
     event NewCopper(address indexed newCopper);
@@ -49,7 +50,9 @@ contract MintController {
     /// @dev Ensure the function is only called by admin.
     /// If caller is not an admin, throws an error message.
     modifier onlyAdmin() {
-        require(wPokt.hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "MintController: caller is not admin");
+        if (!wPokt.hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
+            revert NonAdmin();
+        }
         _;
     }
 
