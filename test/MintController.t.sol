@@ -23,12 +23,18 @@ contract MintControllerTest is Test {
     event NewCopper(address indexed newCopper);
     event CurrentMintLimit(uint256 indexed limit, uint256 indexed lastMint);
 
+    function setCopperAddress() public {
+        vm.startPrank(DEVADDR);
+        mintController.setCopper(copperAddress);
+        vm.stopPrank();
+    }
+
     function setUp() public {
         vm.startPrank(DEVADDR);
         wPokt = new WrappedPocket();
-        wPokt.grantRole(wPokt.MINTER_ROLE(), MINTER);
         wPokt.grantRole(wPokt.PAUSER_ROLE(), PAUSER);
         mintController = new MintController(address(wPokt));
+        wPokt.grantRole(wPokt.MINTER_ROLE(), address(mintController));
         vm.stopPrank();
     }
 
@@ -45,19 +51,19 @@ contract MintControllerTest is Test {
     }
 
     function testStartingMintLimit() public {
-        uint256 expected = 28_500_000 ether;
-        uint256 actual = mintController.mintLimit();
+        uint256 expected = 335_000 ether;
+        uint256 actual = mintController.currentMintLimit();
         assertEq(expected, actual);
     }
 
     function testStartingMintCooldownLimit() public {
-        uint256 expected = 28_500_000 ether;
-        uint256 actual = mintController.mintCooldownLimit();
+        uint256 expected = 335_000 ether;
+        uint256 actual = mintController.maxMintLimit();
         assertEq(expected, actual);
     }
 
     function testStartingMintPerSecond() public {
-        uint256 expected = 330;
+        uint256 expected = 3.8773 ether;
         uint256 actual = mintController.mintPerSecond();
         assertEq(expected, actual);
     }
@@ -88,6 +94,37 @@ contract MintControllerTest is Test {
         emit NewCopper(copperAddress);
         mintController.setCopper(copperAddress);
         vm.stopPrank();
+    }
+
+    function testMintWrappedPocket() public {
+        setCopperAddress();
+        vm.startPrank(copperAddress);
+        mintController.mintWrappedPocket(alice, 100 ether, 1);
+        uint256 expected = 100 ether;
+        uint256 actual = wPokt.balanceOf(alice);
+        assertEq(expected, actual);
+    }
+
+    function testMintWrappedPocketLimit() public {
+        setCopperAddress();
+        uint256 oldLimit = mintController.currentMintLimit();
+        vm.startPrank(copperAddress);
+        mintController.mintWrappedPocket(alice, 100 ether, 1);
+        uint256 expected = 100 ether;
+        uint256 actual = wPokt.balanceOf(alice);
+        assertEq(expected, actual);
+        expected = oldLimit - 100 ether;
+        actual = mintController.currentMintLimit();
+        assertEq(expected, actual);
+    }
+
+    function testMintWrappedPocketLimitFail() public {
+        setCopperAddress();
+        uint256 mintLimit = mintController.currentMintLimit();
+        uint256 amountOverLimit = mintLimit + 1 ether;
+        vm.startPrank(copperAddress);
+        vm.expectRevert(MintController.OverMintLimit.selector);
+        mintController.mintWrappedPocket(alice, amountOverLimit, 1);
     }
 
 }

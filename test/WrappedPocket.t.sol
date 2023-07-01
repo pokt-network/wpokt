@@ -320,6 +320,21 @@ contract WrappedPocketTest is Test {
         vm.stopPrank();
     }
 
+    function testBatchMintIndexLengthFail() public {
+        vm.startPrank(MINTER);
+        address[] memory recipients = new address[](2);
+        recipients[0] = alice;
+        recipients[1] = bob;
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 100000000;
+        amounts[1] = 100000000;
+        uint256[] memory nonces = new uint256[](1);
+        nonces[0] = 1;
+        vm.expectRevert(WrappedPocket.BatchMintLength.selector);
+        wPokt.batchMint(recipients, amounts, nonces);
+        vm.stopPrank();
+    }
+
     function testBatchMintFeeFlagTrue() public {
         vm.startPrank(DEVADDR);
         wPokt.setFee(true, 100, FEE_COLLECTOR);
