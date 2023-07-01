@@ -42,8 +42,6 @@ contract WrappedPocket is ERC20, ERC20Burnable, Pausable, AccessControl, ERC20Pe
 
     constructor() ERC20("Wrapped Pocket", "wPOKT") ERC20Permit("Wrapped Pocket") {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(PAUSER_ROLE, msg.sender);
-        _grantRole(MINTER_ROLE, msg.sender);
     }
 
     /*//////////////////////////////////////////////////////////////
