@@ -114,7 +114,7 @@ contract WrappedPocket is ERC20, ERC20Burnable, Pausable, AccessControl, ERC20Pe
         }
 
         if (feeFlag == true) {
-            uint256[] memory adjustedAmounts = _adjustBatchAndCollectFee(amount);
+            uint256[] memory adjustedAmounts = _batchCollectFee(amount);
 
             for (uint256 i = 0; i < to.length; i++) {
                 _mintBatch(to[i], adjustedAmounts[i], nonce[i]);
@@ -189,7 +189,7 @@ contract WrappedPocket is ERC20, ERC20Burnable, Pausable, AccessControl, ERC20Pe
      * @param amounts Array of mint amounts.
      * @return The array of adjusted amounts.
      */
-    function _adjustBatchAndCollectFee(uint256[] calldata amounts) internal returns (uint256[] memory) {
+    function _batchCollectFee(uint256[] calldata amounts) internal returns (uint256[] memory) {
         uint256 fee;
         uint256 totalFee;
         uint256[] memory adjustedAmounts = new uint256[](amounts.length);
