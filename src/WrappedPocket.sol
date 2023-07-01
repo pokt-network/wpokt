@@ -133,7 +133,7 @@ contract WrappedPocket is ERC20, ERC20Burnable, Pausable, AccessControl, ERC20Pe
      * @param newCollector The address where collected fee will be sent.
      */
     function setFee(bool flag, uint256 newFee, address newCollector) public onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (newCollector == address(0)) {
+        if (newCollector == address(0) && flag == true) {
             revert FeeCollectorZero();
         }
 
