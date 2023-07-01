@@ -265,4 +265,52 @@ contract MintControllerTest is Test {
         vm.expectRevert(MintController.NonAdmin.selector);
         mintController.setMintCooldown(100_000 ether, 10 ether);
     }
+
+    function testFullCooldown() public {
+        setCopperAddress();
+        vm.startPrank(copperAddress);
+        uint256 mintLimit = mintController.currentMintLimit();
+        mintController.mintWrappedPocket(alice, mintLimit, 1);
+        uint256 expected = 0;
+        uint256 actual = mintController.currentMintLimit();
+        assertEq(expected, actual);
+        vm.warp(block.timestamp + 2 days);
+        expected = 335_000 ether;
+        actual = mintController.currentMintLimit();
+        assertEq(expected, actual);
+    }
+
+    function testPartialCooldown() public {
+        setCopperAddress();
+        vm.startPrank(copperAddress);
+        uint256 mintLimit = mintController.currentMintLimit();
+        mintController.mintWrappedPocket(alice, mintLimit, 1);
+        uint256 expected = 0;
+        uint256 actual = mintController.currentMintLimit();
+        assertEq(expected, actual);
+        vm.warp(block.timestamp + 6 hours);
+        uint256 mintPerSecond = mintController.mintPerSecond();
+        expected = mintPerSecond * 6 hours;
+        actual = mintController.currentMintLimit();
+        assertEq(expected, actual);
+    }
+
+    function testPartialCooldownMint() public {
+        setCopperAddress();
+        vm.startPrank(copperAddress);
+        uint256 mintLimit = mintController.currentMintLimit();
+        mintController.mintWrappedPocket(alice, mintLimit, 1);
+        uint256 expected = 0;
+        uint256 actual = mintController.currentMintLimit();
+        assertEq(expected, actual);
+        vm.warp(block.timestamp + 6 hours);
+        uint256 mintPerSecond = mintController.mintPerSecond();
+        expected = mintPerSecond * 6 hours;
+        actual = mintController.currentMintLimit();
+        assertEq(expected, actual);
+        mintController.mintWrappedPocket(bob, expected, 1);
+        actual = wPokt.balanceOf(bob);
+        assertEq(expected, actual);
+    }
+
 }

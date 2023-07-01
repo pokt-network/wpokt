@@ -23,7 +23,7 @@ contract MintController {
 
     address public copper;
 
-    uint256 public currentMintLimit = 335_000 ether;
+    uint256 private _currentMintLimit = 335_000 ether;
     uint256 public lastMint;
 
     uint256 public maxMintLimit = 335_000 ether;
@@ -144,7 +144,7 @@ contract MintController {
 
         uint256 timePassed = block.timestamp - lastMint;
         uint256 mintableFromCooldown = timePassed * mintPerSecond;
-        uint256 previousMintLimit = currentMintLimit;
+        uint256 previousMintLimit = _currentMintLimit;
         uint256 maxMintable = maxMintLimit;
 
         // We enforce that amount is not greater than the maximum mint or the current allowed by cooldown
@@ -154,16 +154,28 @@ contract MintController {
 
         // If the cooldown has fully recovered; we are allowed to mint up to the maximum amount
         if (previousMintLimit + mintableFromCooldown >= maxMintable) {
-            currentMintLimit = maxMintable - amount;
+            _currentMintLimit = maxMintable - amount;
             lastMint = block.timestamp;
             return maxMintable - amount;
 
         // Otherwise the cooldown has not fully recovered; we are allowed to mint up to the recovered amount
         } else {
             uint256 mintable = previousMintLimit + mintableFromCooldown;
-            currentMintLimit = mintable - amount;
+            _currentMintLimit = mintable - amount;
             lastMint = block.timestamp;
             return mintable - amount;
+        }
+    }
+
+    /*//////////////////////////////////////////////////////////////
+    // View Functions
+    //////////////////////////////////////////////////////////////*/
+    function currentMintLimit() external view returns (uint256) {
+        uint256 mintableFromCooldown = (block.timestamp - lastMint) * mintPerSecond;
+        if (mintableFromCooldown + _currentMintLimit > maxMintLimit) {
+            return maxMintLimit;
+        } else {
+            return mintableFromCooldown + _currentMintLimit;
         }
     }
 }
