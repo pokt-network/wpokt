@@ -24,9 +24,10 @@ contract MintController {
     address public copper;
 
     uint256 public currentMintLimit = 335_000 ether;
+    uint256 public lastMint;
+
     uint256 public maxMintLimit = 335_000 ether;
     uint256 public mintPerSecond = 3.8773 ether;
-    uint256 public lastMint;
 
     /*//////////////////////////////////////////////////////////////
     // Events and Errors
@@ -34,6 +35,7 @@ contract MintController {
 
     error OverMintLimit();
     error NonAdmin();
+    error NonCopper();
 
     event MintCooldownSet(uint256 newLimit, uint256 newCooldown);
     event NewCopper(address indexed newCopper);
@@ -59,7 +61,9 @@ contract MintController {
     /// @dev Ensure the function is only called by Copper.
     /// If caller is not Copper, throws an error message.
     modifier onlyCopper() {
-        require(msg.sender == copper, "MintController: caller is not Copper");
+        if (msg.sender != copper) {
+            revert NonCopper();
+        }
         _;
     }
 

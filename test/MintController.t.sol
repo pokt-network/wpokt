@@ -127,4 +127,142 @@ contract MintControllerTest is Test {
         mintController.mintWrappedPocket(alice, amountOverLimit, 1);
     }
 
+    function testMintWrappedPocketEvent() public {
+        setCopperAddress();
+        vm.startPrank(copperAddress);
+        vm.expectEmit(true, false, false, false);
+        emit CurrentMintLimit(335_000 ether - 100 ether, block.timestamp);
+        mintController.mintWrappedPocket(alice, 100 ether, 1);
+    }
+
+    function testMintWrappedPocketAuthFail() public {
+        setCopperAddress();
+        vm.startPrank(DEVADDR);
+        vm.expectRevert(MintController.NonCopper.selector);
+        mintController.mintWrappedPocket(alice, 100 ether, 1);
+    }
+
+    function testBatchMintWrappedPocket() public {
+        setCopperAddress();
+        vm.startPrank(copperAddress);
+        address[] memory recipients = new address[](2);
+        recipients[0] = alice;
+        recipients[1] = bob;
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 100 ether;
+        amounts[1] = 100 ether;
+        uint256[] memory nonces = new uint256[](2);
+        nonces[0] = 1;
+        nonces[1] = 1;
+        mintController.batchMintWrappedPocket(recipients, amounts, nonces);
+        uint256 expected = 100 ether;
+        uint256 actual = wPokt.balanceOf(alice);
+        assertEq(expected, actual);
+        actual = wPokt.balanceOf(bob);
+        assertEq(expected, actual);
+    }
+
+    function testBatchMintWrappedPocketLimit() public {
+        setCopperAddress();
+        uint256 oldLimit = mintController.currentMintLimit();
+        vm.startPrank(copperAddress);
+        address[] memory recipients = new address[](2);
+        recipients[0] = alice;
+        recipients[1] = bob;
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 100 ether;
+        amounts[1] = 100 ether;
+        uint256[] memory nonces = new uint256[](2);
+        nonces[0] = 1;
+        nonces[1] = 1;
+        mintController.batchMintWrappedPocket(recipients, amounts, nonces);
+        uint256 expected = 100 ether;
+        uint256 actual = wPokt.balanceOf(alice);
+        assertEq(expected, actual);
+        actual = wPokt.balanceOf(bob);
+        assertEq(expected, actual);
+        expected = oldLimit - 200 ether;
+        actual = mintController.currentMintLimit();
+        assertEq(expected, actual);
+    }
+
+    function testBatchMintWrappedPocketLimitFail() public {
+        setCopperAddress();
+        uint256 mintLimit = mintController.currentMintLimit();
+        uint256 amountOverLimit = mintLimit + 1 ether;
+        vm.startPrank(copperAddress);
+        address[] memory recipients = new address[](2);
+        recipients[0] = alice;
+        recipients[1] = bob;
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = amountOverLimit;
+        amounts[1] = 100 ether;
+        uint256[] memory nonces = new uint256[](2);
+        nonces[0] = 1;
+        nonces[1] = 1;
+        vm.expectRevert(MintController.OverMintLimit.selector);
+        mintController.batchMintWrappedPocket(recipients, amounts, nonces);
+    }
+
+    function testBatchMintWrappedPocketLimitFail2() public {
+        setCopperAddress();
+        uint256 mintLimit = mintController.currentMintLimit();
+        uint256 halfLimit = mintLimit / 2;
+        vm.startPrank(copperAddress);
+        address[] memory recipients = new address[](2);
+        recipients[0] = alice;
+        recipients[1] = bob;
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = halfLimit + 10_000 ether;
+        amounts[1] = halfLimit + 10_000 ether;
+        uint256[] memory nonces = new uint256[](2);
+        nonces[0] = 1;
+        nonces[1] = 1;
+        vm.expectRevert(MintController.OverMintLimit.selector);
+        mintController.batchMintWrappedPocket(recipients, amounts, nonces);
+    }
+
+    function testBatchMintWrappedPocketEvent() public {
+        setCopperAddress();
+        vm.startPrank(copperAddress);
+        address[] memory recipients = new address[](2);
+        recipients[0] = alice;
+        recipients[1] = bob;
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 100 ether;
+        amounts[1] = 100 ether;
+        uint256[] memory nonces = new uint256[](2);
+        nonces[0] = 1;
+        nonces[1] = 1;
+        vm.expectEmit(true, false, false, false);
+        emit CurrentMintLimit(335_000 ether - 200 ether, block.timestamp);
+        mintController.batchMintWrappedPocket(recipients, amounts, nonces);
+    }
+
+    function testSetMintCooldown() public {
+        setCopperAddress();
+        vm.startPrank(DEVADDR);
+        mintController.setMintCooldown(100_000 ether, 10 ether);
+        uint256 expected = 100_000 ether;
+        uint256 actual = mintController.maxMintLimit();
+        assertEq(expected, actual);
+        expected = 10 ether;
+        actual = mintController.mintPerSecond();
+        assertEq(expected, actual);
+    }
+
+    function testSetMintCooldownEvent() public {
+        setCopperAddress();
+        vm.startPrank(DEVADDR);
+        vm.expectEmit(true, false, false, false);
+        emit MintCooldownSet(100_000 ether, 10 ether);
+        mintController.setMintCooldown(100_000 ether, 10 ether);
+    }
+
+    function testSetMintCooldownFail() public {
+        setCopperAddress();
+        vm.startPrank(alice);
+        vm.expectRevert(MintController.NonAdmin.selector);
+        mintController.setMintCooldown(100_000 ether, 10 ether);
+    }
 }
