@@ -18,6 +18,7 @@ contract WrappedPocketTest is Test {
     event FeeSet(bool indexed flag, uint256 indexed newFeeBasis, address indexed feeCollector);
     event FeeCollected(address indexed feeCollector, uint256 indexed amount);
     event BurnAndBridge(uint256 indexed amount, address indexed poktAddress, address indexed from);
+    event NonceIncremented(address indexed user, uint256 indexed nonce);
 
     function setUp() public {
         vm.startPrank(DEVADDR);
@@ -191,5 +192,66 @@ contract WrappedPocketTest is Test {
         bool actual = wPokt.paused();
         assertEq(actual, expected);
     }
+
+    function testMint() public {
+        vm.startPrank(MINTER);
+        wPokt.mint(alice, 100000000, 1);
+        vm.stopPrank();
+        uint256 expected = 100000000;
+        uint256 actual = wPokt.balanceOf(alice);
+        assertEq(actual, expected);
+    }
+
+    function testMintNonceIncrement() public {
+        vm.startPrank(MINTER);
+        wPokt.mint(alice, 100000000, 1);
+        uint256 expected = 1;
+        uint256 actual = wPokt.getUserNonce(alice);
+        assertEq(actual, expected);
+    }
+
+    function testMintNonceFail() public {
+        vm.startPrank(MINTER);
+        vm.expectRevert(abi.encodeWithSelector(WrappedPocket.UserNonce.selector, alice, 0));
+        wPokt.mint(alice, 100000000, 0);
+        vm.stopPrank();
+    }
+
+    function testMintFeeFlagTrue() public {
+        vm.startPrank(DEVADDR);
+        wPokt.setFee(true, 100, FEE_COLLECTOR);
+        vm.stopPrank();
+        vm.startPrank(MINTER);
+        wPokt.mint(alice, 100000000, 1);
+        vm.stopPrank();
+        uint256 expected = 100000000 - (100000000 / wPokt.BASIS_POINTS() * wPokt.feeBasis());
+        uint256 actual = wPokt.balanceOf(alice);
+        assertEq(actual, expected);
+    }
+
+    function testMintFeeEvent() public {
+        vm.startPrank(DEVADDR);
+        wPokt.setFee(true, 100, FEE_COLLECTOR);
+        uint256 expected = 100000000 / wPokt.BASIS_POINTS() * wPokt.feeBasis();
+        vm.startPrank(MINTER);
+        vm.expectEmit(true, true, false, false);
+        emit FeeCollected(FEE_COLLECTOR, expected);
+        wPokt.mint(alice, 100000000, 1);
+        vm.stopPrank();
+    }
+
+    function testMintFeeToCollector() public {
+        vm.startPrank(DEVADDR);
+        wPokt.setFee(true, 100, FEE_COLLECTOR);
+        vm.stopPrank();
+        vm.startPrank(MINTER);
+        wPokt.mint(alice, 100000000, 1);
+        vm.stopPrank();
+        uint256 expected = 100000000 / wPokt.BASIS_POINTS() * wPokt.feeBasis();
+        uint256 actual = wPokt.balanceOf(FEE_COLLECTOR);
+        assertEq(actual, expected);
+    }
+
+
 
 }
