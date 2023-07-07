@@ -74,6 +74,12 @@ contract MintControllerTest is Test {
         assertEq(expected, actual);
     }
 
+    function testStartingLastMintLimit() public {
+        uint256 expected = 335_000 ether;
+        uint256 actual = mintController.lastMintLimit();
+        assertEq(expected, actual);
+    }
+
     function testSetCopper() public {
         vm.startPrank(DEVADDR);
         mintController.setCopper(copperAddress);

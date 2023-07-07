@@ -178,4 +178,8 @@ contract MintController {
             return mintableFromCooldown + _currentMintLimit;
         }
     }
+
+    function lastMintLimit() external view returns (uint256) {
+        return _currentMintLimit;
+    }
 }
