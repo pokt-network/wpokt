@@ -4,8 +4,8 @@ The WrappedPocket contract is a smart contract for the Ethereum blockchain writt
 
 ## Contract Features
 
-1. **Minting Tokens**: Specific addresses (holding the "MINTER_ROLE") are allowed to mint new tokens to a specified address. Minting can also be done in batch to multiple addresses.
-2. **Burning Tokens**: The contract allows the burning of tokens via a public function. However, unlike typical ERC20 contracts, burning is restricted to a method that allows the user to burn tokens and emits an event for bridging the amount to the Pocket blockchain.
+1. **Minting Tokens**: Specific addresses (holding the "MINTER_ROLE") are allowed to mint new tokens to a specified address. Minting can also be done in batch to multiple addresses.  This is for minter contracts; which can be changed to extend the functionality of wPOKT.
+2. **Burning Tokens**: The contract allows the burning of tokens via a public function. However, unlike typical ERC20 contracts, burning is restricted to a method that allows the user to burn tokens and emits an event for bridging the amount to a specific address on the Pocket Network blockchain.
 3. **Pause and Unpause**: The contract functions can be paused and unpaused by addresses with the "PAUSER_ROLE".
 4. **Fees**: The contract has a fee mechanism in place, with the possibility to enable/disable fees and set the fee amount. Fees are deducted during the minting process and are sent to a specified fee collector address.
 5. **Access Control**: Access control is implemented using roles, with the "DEFAULT_ADMIN_ROLE" having permission to set fees, the "PAUSER_ROLE" able to pause and unpause the contract, and the "MINTER_ROLE" permitted to mint tokens.
@@ -15,7 +15,7 @@ The WrappedPocket contract is a smart contract for the Ethereum blockchain writt
 - `burnAndBridge(uint256 amount, address poktAddress)`: Allows a user to burn their tokens and emits an event to bridge the amount to the Pocket blockchain.
 - `pause()`: Allows an account with the "PAUSER_ROLE" to pause the contract functions.
 - `unpause()`: Allows an account with the "PAUSER_ROLE" to unpause the contract functions.
-- `mint(address to, uint256 amount, uint256 nonce)`: Allows an account with the "MINTER_ROLE" to mint tokens to a specific address.
+- `mint(address to, uint256 amount, uint256 nonce)`: Allows an account with the "MINTER_ROLE" to mint tokens to a specific address.  The nonce is used to prevent any identical transaction from being allowed.
 - `batchMint(address[] calldata to, uint256[] calldata amount, uint256[] calldata nonce)`: Allows an account with the "MINTER_ROLE" to mint tokens in batches to multiple addresses.
 - `setFee(bool flag, uint256 newFee, address newCollector)`: Allows an account with the "DEFAULT_ADMIN_ROLE" to set the fee parameters.
 - `getUserNonce(address user)`: Get the current nonce for a user.
@@ -39,7 +39,7 @@ The contract defines several custom errors to revert transactions under specific
 
 # MintController Smart Contract Documentation
 
-The MintController is a Solidity smart contract that interfaces with the Wrapped Pocket (wPOKT) token contract. It provides functionality to mint new wPOKT tokens, with a cap on the amount of tokens that can be minted within a certain time frame to prevent token oversupply.
+The MintController is a smart contract that interfaces with the Wrapped Pocket (wPOKT) token contract. It provides functionality to mint new wPOKT tokens, with a cap on the amount of tokens that can be minted within a certain time frame as a security feature.
 
 ## Contract Structure
 
@@ -103,6 +103,6 @@ This contract ensures that the supply of wPOKT tokens can be expanded in a contr
 - The MintController is a separate contract because it enables the minting mechanism controller to be very simply upgraded.
 - In order to upgrade the MintController; simply deploy a new version or type of the MintController contract - and call `grantRole(MINTER_ROLE, newMintControllerAddress)` on the Wrapped Pocket token contract from the DEFAULT_ADMIN_ROLE multisig.
 - After upgrading the MintController; you should also call `revokeRole(MINTER_ROLE, oldMintControllerAddress)` in order to revoke MINTER_ROLE from the old contract.
-- If you don't want to update the MintController contract; but you would like to change the account address which initiates the minting transactions you can call `setCopper(newMintingWalletAddress)` from the DEFAULT_ADMIN_ROLE multisig.
+- If you don't want to update the MintController contract; but you would like to change the account address which initiates the minting transactions you can call `setCopper(newMintingWalletAddress)` from the DEFAULT_ADMIN_ROLE multisig.  This will change the EOA address which is allowed to initiate minting new wrapped Pocket.
 - There's a userNonce mapping in the Wrapped Token contract which will block any erroneous minting attempt from the backend.
 
