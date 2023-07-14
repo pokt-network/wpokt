@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
+import "openzeppelin-contracts/contracts/utils/cryptography/EIP712.sol";
+
 interface IWPokt {
     function batchMint(address[] calldata recipients, uint256[] calldata amounts, uint256[] calldata nonces) external;
 
@@ -9,7 +11,7 @@ interface IWPokt {
     function hasRole(bytes32 role, address account) external returns (bool);
 }
 
-contract MintController {
+contract MintController is EIP712 {
     /*//////////////////////////////////////////////////////////////
     // Immutable Storage
     //////////////////////////////////////////////////////////////*/
@@ -21,7 +23,9 @@ contract MintController {
     // State
     //////////////////////////////////////////////////////////////*/
 
-    address public copper;
+    mapping(address => bool) public validators;
+    uint256 public validatorCount;
+    uint256 public signatureRatio = 50; // out of 100
 
     uint256 private _currentMintLimit = 335_000 ether;
     uint256 public lastMint;
@@ -36,12 +40,16 @@ contract MintController {
     error OverMintLimit();
     error NonAdmin();
     error NonCopper();
+    error InvalidSignatureRatio();
+    error InvalidSignatures();
 
     event MintCooldownSet(uint256 newLimit, uint256 newCooldown);
-    event NewCopper(address indexed newCopper);
+    event NewValidator(address indexed validator);
+    event RemovedValidator(address indexed validator);
     event CurrentMintLimit(uint256 indexed limit, uint256 indexed lastMint);
+    event SignatureRatioSet(uint256 indexed ratio);
 
-    constructor(address _wPokt) {
+    constructor(address _wPokt) EIP712("MintController", "1") {
         wPokt = IWPokt(_wPokt);
     }
 
@@ -58,66 +66,61 @@ contract MintController {
         _;
     }
 
-    /// @dev Ensure the function is only called by Copper.
-    /// If caller is not Copper, throws an error message.
-    modifier onlyCopper() {
-        if (msg.sender != copper) {
-            revert NonCopper();
-        }
-        _;
-    }
-
     /*//////////////////////////////////////////////////////////////
     // Access Control
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Changes the Copper address.
+
+
+    /// @notice Adds a validator to the list of validators.
     /// @dev Can only be called by admin.
-    /// @param _copper The new Copper address to be set.
-    function setCopper(address _copper) external onlyAdmin {
-        copper = _copper;
-        emit NewCopper(_copper);
+    /// Emits a NewValidator event upon successful addition.
+    /// @param _validator The address of the validator to add.
+    function addValidator(address _validator) external onlyAdmin {
+        validators[_validator] = true;
+        emit NewValidator(_validator);
     }
 
-    /// @notice Mints wrapped POKT tokens to a specific address.
-    /// @dev Can only be called by Copper.
-    /// If the amount to mint is more than the current mint limit, transaction is reverted.
-    /// @param recipient The address to receive the minted tokens.
-    /// @param amount The amount of tokens to mint.
-    /// @param nonce A unique identifier for this mint operation.
-    function mintWrappedPocket(address recipient, uint256 amount, uint256 nonce) external onlyCopper {
-
-        uint256 remainingMintable = _enforceMintLimit(amount);
-
-        wPokt.mint(recipient, amount, nonce);
-
-        emit CurrentMintLimit(remainingMintable, lastMint);
+    /// @notice Removes a validator from the list of validators.
+    /// @dev Can only be called by admin.
+    /// Emits a RemovedValidator event upon successful removal.
+    /// @param _validator The address of the validator to remove.
+    function removeValidator(address _validator) external onlyAdmin {
+        validators[_validator] = false;
+        emit RemovedValidator(_validator);
     }
 
-    /// @notice Mints wrapped POKT tokens to a list of addresses.
-    /// @dev Can only be called by Copper.
-    /// If the total amount to mint is more than the current mint limit, transaction is reverted.
-    /// We don't check array length match because that happens at the token contract.
-    /// @param recipients The addresses to receive the minted tokens.
-    /// @param amounts The amounts of tokens to mint for each recipient.
-    /// @param nonces Unique identifiers for each mint operation.
-    function batchMintWrappedPocket(
-        address[] calldata recipients,
-        uint256[] calldata amounts,
-        uint256[] calldata nonces
-    ) external onlyCopper {
-        uint256 amountTotal;
-
-        for (uint256 i = 0; i < amounts.length;) {
-            amountTotal += amounts[i];
-            unchecked {
-                ++i;
-            }
+    /// @notice Sets the signature ratio.
+    /// @dev Can only be called by admin.
+    /// Emits a SignatureRatioSet event upon successful setting.
+    /// @param _signatureRatio The new signature ratio to set.
+    function setSignatureRatio(uint256 _signatureRatio) external onlyAdmin {
+        if (_signatureRatio <= 0 || _signatureRatio > 100) {
+            revert InvalidSignatureRatio();
         }
+        signatureRatio = _signatureRatio;
+        emit SignatureRatioSet(_signatureRatio);
+    }
 
-        uint256 remainingMintable = _enforceMintLimit(amountTotal);
+    struct MintData {
+        address recipient;
+        uint256 amount;
+        uint256 nonce;
+    }
 
-        wPokt.batchMint(recipients, amounts, nonces);
+    /// @notice Mint wrapped POKT tokens to a specific address with a signature.
+    /// @dev Can be called by anyone
+    /// If the amount to mint is more than the current mint limit, transaction is reverted.
+    /// @param _data The mint data to be verified.
+    /// @param _signatures The signatures to be verified.
+    function mintWrappedPocket(MintData calldata _data, bytes[] calldata _signatures) external {
+
+        if (_verify(_data, _signatures) == false) {
+            revert InvalidSignatures();
+        }
+        
+        uint256 remainingMintable = _enforceMintLimit(_data.amount);
+        wPokt.mint(_data.recipient, _data.amount, _data.nonce);
         emit CurrentMintLimit(remainingMintable, lastMint);
     }
 
@@ -136,6 +139,30 @@ contract MintController {
     /*//////////////////////////////////////////////////////////////
     // Internal Functions
     //////////////////////////////////////////////////////////////*/
+
+    /// @notice Verifies the mint data signature.
+    /// @dev internal function to be called by mintWithSignature.
+    /// @param _data The mint data to be verified.
+    /// @param _signatures The signatures to be verified.
+    /// @return True if the signatures are valid, false otherwise.
+    function _verify(MintData calldata _data, bytes[] calldata _signatures) internal view returns (bool) {
+        bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(
+                keccak256("MintData(address recipient,uint256 amount,uint256 nonce)"),
+                _data.recipient,
+                _data.amount,
+                _data.nonce
+            )));
+
+        uint256 validSignatures = 0;
+        for (uint256 i = 0; i < _signatures.length; i++) {
+            address signer = ECDSA.recover(digest, _signatures[i]);
+            if (validators[signer]) {
+                validSignatures++;
+            }
+        }
+        return validSignatures > 0 &&  validSignatures >= signatureRatio * validatorCount / 100;
+    }
+
 
     /// @dev Updates the mint limit based on the cooldown mechanism.
     /// @param amount The amount of tokens to mint.
