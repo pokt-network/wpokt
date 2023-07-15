@@ -51,6 +51,13 @@ contract MintController is EIP712 {
     event CurrentMintLimit(uint256 indexed limit, uint256 indexed lastMint);
     event SignerThresholdSet(uint256 indexed ratio);
 
+    // Data object for signing and digest construction
+    struct MintData {
+        address recipient;
+        uint256 amount;
+        uint256 nonce;
+    }
+
     constructor(address _wPokt) EIP712("MintController", "1") {
         wPokt = IWPokt(_wPokt);
     }
@@ -110,12 +117,6 @@ contract MintController is EIP712 {
         }
         signerThreshold = signatureRatio;
         emit SignerThresholdSet(signatureRatio);
-    }
-
-    struct MintData {
-        address recipient;
-        uint256 amount;
-        uint256 nonce;
     }
 
     /// @notice Mint wrapped POKT tokens to a specific address with a signature.
