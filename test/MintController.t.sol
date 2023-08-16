@@ -237,6 +237,92 @@ contract MintControllerTest is Test {
         assertEq(expected, actual);
     }
 
+    function testAddValidator() public {
+        vm.startPrank(DEVADDR);
+        mintController.addValidator(bob);
+        vm.stopPrank();
+        bool expected = true;
+        bool actual = mintController.validators(bob);
+        assertEq(expected, actual);
+    }
+
+    function testAddValidatorNonAdminFail() public {
+        vm.startPrank(alice);
+        vm.expectRevert(MintController.NonAdmin.selector);
+        mintController.addValidator(bob);
+    }
+
+    function testAddValidatorNonZeroFail() public {
+        vm.startPrank(DEVADDR);
+        vm.expectRevert(MintController.NonZero.selector);
+        mintController.addValidator(address(0));
+    }
+
+    function testAddValidatorNewValidatorEvent() public {
+        vm.startPrank(DEVADDR);
+        vm.expectEmit(true, false, false, false);
+        emit NewValidator(bob);
+        mintController.addValidator(bob);
+    }
+
+    function testRemoveValidator() public {
+        vm.startPrank(DEVADDR);
+        mintController.removeValidator(validAddressAsc[0]);
+        vm.stopPrank();
+        bool expected = false;
+        bool actual = mintController.validators(validAddressAsc[0]);
+        assertEq(expected, actual);
+    }
+
+    function testRemoveValidatorNonZero() public {
+        vm.startPrank(DEVADDR);
+        vm.expectRevert(MintController.NonZero.selector);
+        mintController.removeValidator(address(0));
+    }
+
+    function testRemoveValidatorBelowMinThresholdFail() public {
+        vm.startPrank(DEVADDR);
+        mintController.removeValidator(validAddressAsc[0]);
+        mintController.removeValidator(validAddressAsc[1]);
+        mintController.removeValidator(validAddressAsc[2]);
+        vm.expectRevert(MintController.BelowMinThreshold.selector);
+        mintController.removeValidator(validAddressAsc[3]);
+    }
+
+    function testRemoveValidatorNonAdminFail() public {
+        vm.startPrank(alice);
+        vm.expectRevert(MintController.NonAdmin.selector);
+        mintController.removeValidator(validAddressAsc[0]);
+    }
+
+    function testRemoveValidatorRemovedValidatorEvent() public {
+        vm.startPrank(DEVADDR);
+        vm.expectEmit(true, false, false, false);
+        emit RemovedValidator(validAddressAsc[0]);
+        mintController.removeValidator(validAddressAsc[0]);
+    }
+
+    function testSetSignerThreshold() public {
+        vm.startPrank(DEVADDR);
+        mintController.setSignerThreshold(5);
+        uint256 expected = 5;
+        uint256 actual = mintController.signerThreshold();
+        assertEq(expected, actual);
+    }
+
+    function testSetSignerThresholdInvalidSignatureRatioFail() public {
+        vm.startPrank(DEVADDR);
+        vm.expectRevert(MintController.InvalidSignatureRatio.selector);
+        mintController.setSignerThreshold(11);
+    }
+
+    function testSetSignerThresholdSignerThresholdSetEvent() public {
+        vm.startPrank(DEVADDR);
+        vm.expectEmit(true, false, false, false);
+        emit SignerThresholdSet(5);
+        mintController.setSignerThreshold(5);
+    }
+
     function testMintWrappedPocket() public {
         MintController.MintData memory mintData = buildMintData(alice, 100 ether, 1);
         bytes[] memory signatures = buildSignaturesAsc(mintData);
@@ -244,6 +330,13 @@ contract MintControllerTest is Test {
         uint256 expected = 100 ether;
         uint256 actual = wPokt.balanceOf(alice);
         assertEq(expected, actual);
+    }
+
+    function testMintWrappedPocketInvalidSignaturesFail() public {
+        MintController.MintData memory mintData = buildMintData(alice, 100 ether, 1);
+        bytes[] memory signatures = buildSignaturesDesc(mintData);
+        vm.expectRevert(MintController.InvalidSignatures.selector);
+        mintController.mintWrappedPocket(mintData, signatures);
     }
 
     function testMintWrappedPocketLimit() public {

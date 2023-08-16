@@ -102,6 +102,9 @@ contract MintController is EIP712 {
         if (validatorCount - 1 < signerThreshold) {
             revert BelowMinThreshold();
         }
+        if (validator == address(0)) {
+            revert NonZero();
+        }
         validators[validator] = false;
         validatorCount--;
         emit RemovedValidator(validator);
@@ -112,7 +115,7 @@ contract MintController is EIP712 {
     /// Emits a SignerThresholdSet event upon successful setting.
     /// @param signatureRatio The new signature ratio to set.
     function setSignerThreshold(uint256 signatureRatio) external onlyAdmin {
-        if (signatureRatio > validatorCount) {
+        if (signatureRatio > validatorCount || signatureRatio == 0) {
             revert InvalidSignatureRatio();
         }
         signerThreshold = signatureRatio;
