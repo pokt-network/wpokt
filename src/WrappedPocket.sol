@@ -32,6 +32,7 @@ contract WrappedPocket is ERC20, ERC20Burnable, Pausable, AccessControl, ERC20Pe
     event FeeSet(bool indexed flag, uint256 indexed newFeeBasis, address indexed feeCollector);
     event FeeCollected(address indexed feeCollector, uint256 indexed amount);
     event BurnAndBridge(uint256 indexed amount, address indexed poktAddress, address indexed from);
+    event Minted(address indexed recipient, uint256 indexed amount, uint256 indexed nonce);
 
     error UserNonce(address user, uint256 nonce);
     error FeeCollectorZero();
@@ -96,6 +97,7 @@ contract WrappedPocket is ERC20, ERC20Burnable, Pausable, AccessControl, ERC20Pe
 
         _userNonces[to] = nonce;
         _mint(to, amount);
+        emit Minted(to, amount, nonce);
     }
 
     /**
@@ -166,6 +168,7 @@ contract WrappedPocket is ERC20, ERC20Burnable, Pausable, AccessControl, ERC20Pe
 
         _userNonces[to] = nonce;
         _mint(to, amount);
+        emit Minted(to, amount, nonce);
     }
 
     /**

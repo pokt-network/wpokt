@@ -19,14 +19,172 @@ contract MintControllerTest is Test {
     address internal constant MINTER = address(0x1337);
     address internal constant PAUSER = address(0x1111);
 
-    event MintCooldownSet(uint256 newLimit, uint256 newCooldown);
-    event NewCopper(address indexed newCopper);
-    event CurrentMintLimit(uint256 indexed limit, uint256 indexed lastMint);
+    address[] internal validAddressAsc;
+    address[] internal validAddressDesc;
+    uint256[] internal privKeyAsc;
+    uint256[] internal privKeyDesc;
 
-    function setCopperAddress() public {
+    string internal constant _NAME = "MintController";
+    string internal constant _VERSION = "1";
+
+    bytes32 private constant _TYPE_HASH =
+        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
+
+    bytes32 internal _hashedName;
+    bytes32 internal _hashedVersion;
+    uint256 internal _cachedChainId;
+    bytes32 internal _cachedDomainSeparator;
+    address internal _cachedControllerAddress;
+
+    event MintCooldownSet(uint256 newLimit, uint256 newCooldown);
+    event NewValidator(address indexed validator);
+    event RemovedValidator(address indexed validator);
+    event CurrentMintLimit(uint256 indexed limit, uint256 indexed lastMint);
+    event SignerThresholdSet(uint256 indexed ratio);
+
+    function addValidator(address newSigner) public {
         vm.startPrank(DEVADDR);
-        mintController.setCopper(copperAddress);
+        mintController.addValidator(newSigner);
         vm.stopPrank();
+    }
+
+    function addValidators(address[] memory newSigners) public {
+        vm.startPrank(DEVADDR);
+        for (uint256 i = 0; i < newSigners.length; i++) {
+            mintController.addValidator(newSigners[i]);
+        }
+        vm.stopPrank();
+    }
+
+    function buildValidatorArrayAscending(uint256 quantity) public {
+        uint256[] memory privateKeyArrayAscending = new uint256[](quantity);
+        address[] memory validatorArrayAscending = new address[](quantity);
+        for (uint256 i = 0; i < quantity; i++) {
+            address newSignerAddress = vm.addr(i + 1);
+            validatorArrayAscending[i] = newSignerAddress;
+            privateKeyArrayAscending[i] = i + 1;
+        }
+        for (uint256 i = 0; i < quantity; i++) {
+            for (uint256 j = 0; j < quantity - i - 1; j++) {
+                if (validatorArrayAscending[j] > validatorArrayAscending[j + 1]) {
+                    address tempAddress = validatorArrayAscending[j];
+                    uint256 tempKey = privateKeyArrayAscending[j];
+                    validatorArrayAscending[j] = validatorArrayAscending[j + 1];
+                    privateKeyArrayAscending[j] = privateKeyArrayAscending[j + 1];
+                    validatorArrayAscending[j + 1] = tempAddress;
+                    privateKeyArrayAscending[j + 1] = tempKey;
+                }
+            }
+        }
+        for (uint256 i = 0; i < quantity; i++) {
+            privKeyAsc.push(privateKeyArrayAscending[i]);
+            validAddressAsc.push(validatorArrayAscending[i]);
+        }
+    }
+
+    function buildValidatorArrayDescending(uint256 quantity) public {
+        uint256[] memory privateKeyArrayDescending = new uint256[](quantity);
+        address[] memory validatorArrayDescending = new address[](quantity);
+        for (uint256 i = 0; i < quantity; i++) {
+            address newSignerAddress = vm.addr(i + 1);
+            validatorArrayDescending[i] = newSignerAddress;
+            privateKeyArrayDescending[i] = i + 1;
+        }
+        for (uint256 i = 0; i < quantity; i++) {
+            for (uint256 j = 0; j < quantity - i - 1; j++) {
+                if (validatorArrayDescending[j] < validatorArrayDescending[j + 1]) {
+                    address tempAddress = validatorArrayDescending[j];
+                    uint256 tempKey = privateKeyArrayDescending[j];
+                    validatorArrayDescending[j] = validatorArrayDescending[j + 1];
+                    privateKeyArrayDescending[j] = privateKeyArrayDescending[j + 1];
+                    validatorArrayDescending[j + 1] = tempAddress;
+                    privateKeyArrayDescending[j + 1] = tempKey;
+                }
+            }
+        }
+        for (uint256 i = 0; i < quantity; i++) {
+            privKeyDesc.push(privateKeyArrayDescending[i]);
+            validAddressDesc.push(validatorArrayDescending[i]);
+        }
+    }
+
+    function buildMintData(address recipient, uint256 amount, uint256 nonce) public pure returns (MintController.MintData memory) {
+        return MintController.MintData(recipient, amount, nonce);
+    }
+
+    function setTypeHashes() public {
+        _hashedName = keccak256(bytes(_NAME));
+        _hashedVersion = keccak256(bytes(_VERSION));
+        _cachedChainId = block.chainid;
+        _cachedControllerAddress = address(mintController);
+        _cachedDomainSeparator = _buildDomainSeparator();
+    }
+
+    function _buildDomainSeparator() private view returns (bytes32) {
+        return keccak256(abi.encode(_TYPE_HASH, _hashedName, _hashedVersion, block.chainid, address(mintController)));
+    }
+
+    function toTypedDataHash(bytes32 domainSeparator, bytes32 structHash) internal pure returns (bytes32 data) {
+        /// @solidity memory-safe-assembly
+        assembly {
+            let ptr := mload(0x40)
+            mstore(ptr, "\x19\x01")
+            mstore(add(ptr, 0x02), domainSeparator)
+            mstore(add(ptr, 0x22), structHash)
+            data := keccak256(ptr, 0x42)
+        }
+    }
+
+    function _hashTypedDataV4(bytes32 structHash) internal view virtual returns (bytes32) {
+        return ECDSA.toTypedDataHash(_cachedDomainSeparator, structHash);
+    }
+
+    function buildSignatureAsc(MintController.MintData memory data, uint256 signerIndex) public view returns (bytes memory) {
+        bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(
+                keccak256("MintData(address recipient,uint256 amount,uint256 nonce)"),
+                data.recipient,
+                data.amount,
+                data.nonce
+            )));
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privKeyAsc[signerIndex], digest);
+        bytes memory signature = abi.encodePacked(r, s, v);
+        return signature;
+    }
+
+    function buildSignatureDesc(MintController.MintData memory data, uint256 signerIndex) public view returns (bytes memory) {
+        bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(
+                keccak256("MintData(address recipient,uint256 amount,uint256 nonce)"),
+                data.recipient,
+                data.amount,
+                data.nonce
+            )));
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privKeyDesc[signerIndex], digest);
+        bytes memory signature = abi.encodePacked(r, s, v);
+        return signature;
+    }
+
+    function buildSignaturesAsc(MintController.MintData memory data) public view returns (bytes[] memory) {
+        bytes[] memory signatures = new bytes[](privKeyAsc.length);
+        for (uint256 i = 0; i < signatures.length; i++) {
+            signatures[i] = buildSignatureAsc(data, i);
+        }
+        return signatures;
+    }
+
+    function buildSignaturesDesc(MintController.MintData memory data) public view returns (bytes[] memory) {
+        bytes[] memory signatures = new bytes[](privKeyDesc.length);
+        for (uint256 i = 0; i < signatures.length; i++) {
+            signatures[i] = buildSignatureDesc(data, i);
+        }
+        return signatures;
+    }
+
+    function addSigners(address[] memory signers) public {
+        for (uint256 i = 0; i < signers.length; i++) {
+            mintController.addValidator(signers[i]);
+        }
     }
 
     function setUp() public {
@@ -35,18 +193,17 @@ contract MintControllerTest is Test {
         wPokt.grantRole(wPokt.PAUSER_ROLE(), PAUSER);
         mintController = new MintController(address(wPokt));
         wPokt.grantRole(wPokt.MINTER_ROLE(), address(mintController));
+        setTypeHashes();
+        buildValidatorArrayAscending(10);
+        buildValidatorArrayDescending(10);
+        addSigners(validAddressAsc);
+        mintController.setSignerThreshold(7);
         vm.stopPrank();
     }
 
     function testWPOKTSet() public {
         address expected = address(wPokt);
         address actual = address(mintController.wPokt());
-        assertEq(expected, actual);
-    }
-
-    function testStartingCopper() public {
-        address expected = address(0);
-        address actual = mintController.copper();
         assertEq(expected, actual);
     }
 
@@ -80,42 +237,113 @@ contract MintControllerTest is Test {
         assertEq(expected, actual);
     }
 
-    function testSetCopper() public {
+    function testAddValidator() public {
         vm.startPrank(DEVADDR);
-        mintController.setCopper(copperAddress);
-        address expected = copperAddress;
-        address actual = mintController.copper();
-        assertEq(expected, actual);
+        mintController.addValidator(bob);
         vm.stopPrank();
+        bool expected = true;
+        bool actual = mintController.validators(bob);
+        assertEq(expected, actual);
     }
 
-    function testSetCopperFail() public {
+    function testAddValidatorNonAdminFail() public {
+        vm.startPrank(alice);
         vm.expectRevert(MintController.NonAdmin.selector);
-        mintController.setCopper(copperAddress);
+        mintController.addValidator(bob);
     }
 
-    function testSetCopperEvent() public {
+    function testAddValidatorNonZeroFail() public {
+        vm.startPrank(DEVADDR);
+        vm.expectRevert(MintController.NonZero.selector);
+        mintController.addValidator(address(0));
+    }
+
+    function testAddValidatorNewValidatorEvent() public {
         vm.startPrank(DEVADDR);
         vm.expectEmit(true, false, false, false);
-        emit NewCopper(copperAddress);
-        mintController.setCopper(copperAddress);
+        emit NewValidator(bob);
+        mintController.addValidator(bob);
+    }
+
+    function testRemoveValidator() public {
+        vm.startPrank(DEVADDR);
+        mintController.removeValidator(validAddressAsc[0]);
         vm.stopPrank();
+        bool expected = false;
+        bool actual = mintController.validators(validAddressAsc[0]);
+        assertEq(expected, actual);
+    }
+
+    function testRemoveValidatorNonZero() public {
+        vm.startPrank(DEVADDR);
+        vm.expectRevert(MintController.NonZero.selector);
+        mintController.removeValidator(address(0));
+    }
+
+    function testRemoveValidatorBelowMinThresholdFail() public {
+        vm.startPrank(DEVADDR);
+        mintController.removeValidator(validAddressAsc[0]);
+        mintController.removeValidator(validAddressAsc[1]);
+        mintController.removeValidator(validAddressAsc[2]);
+        vm.expectRevert(MintController.BelowMinThreshold.selector);
+        mintController.removeValidator(validAddressAsc[3]);
+    }
+
+    function testRemoveValidatorNonAdminFail() public {
+        vm.startPrank(alice);
+        vm.expectRevert(MintController.NonAdmin.selector);
+        mintController.removeValidator(validAddressAsc[0]);
+    }
+
+    function testRemoveValidatorRemovedValidatorEvent() public {
+        vm.startPrank(DEVADDR);
+        vm.expectEmit(true, false, false, false);
+        emit RemovedValidator(validAddressAsc[0]);
+        mintController.removeValidator(validAddressAsc[0]);
+    }
+
+    function testSetSignerThreshold() public {
+        vm.startPrank(DEVADDR);
+        mintController.setSignerThreshold(5);
+        uint256 expected = 5;
+        uint256 actual = mintController.signerThreshold();
+        assertEq(expected, actual);
+    }
+
+    function testSetSignerThresholdInvalidSignatureRatioFail() public {
+        vm.startPrank(DEVADDR);
+        vm.expectRevert(MintController.InvalidSignatureRatio.selector);
+        mintController.setSignerThreshold(11);
+    }
+
+    function testSetSignerThresholdSignerThresholdSetEvent() public {
+        vm.startPrank(DEVADDR);
+        vm.expectEmit(true, false, false, false);
+        emit SignerThresholdSet(5);
+        mintController.setSignerThreshold(5);
     }
 
     function testMintWrappedPocket() public {
-        setCopperAddress();
-        vm.startPrank(copperAddress);
-        mintController.mintWrappedPocket(alice, 100 ether, 1);
+        MintController.MintData memory mintData = buildMintData(alice, 100 ether, 1);
+        bytes[] memory signatures = buildSignaturesAsc(mintData);
+        mintController.mintWrappedPocket(mintData, signatures);
         uint256 expected = 100 ether;
         uint256 actual = wPokt.balanceOf(alice);
         assertEq(expected, actual);
     }
 
+    function testMintWrappedPocketInvalidSignaturesFail() public {
+        MintController.MintData memory mintData = buildMintData(alice, 100 ether, 1);
+        bytes[] memory signatures = buildSignaturesDesc(mintData);
+        vm.expectRevert(MintController.InvalidSignatures.selector);
+        mintController.mintWrappedPocket(mintData, signatures);
+    }
+
     function testMintWrappedPocketLimit() public {
-        setCopperAddress();
         uint256 oldLimit = mintController.currentMintLimit();
-        vm.startPrank(copperAddress);
-        mintController.mintWrappedPocket(alice, 100 ether, 1);
+        MintController.MintData memory mintData = buildMintData(alice, 100 ether, 1);
+        bytes[] memory signatures = buildSignaturesAsc(mintData);
+        mintController.mintWrappedPocket(mintData, signatures);
         uint256 expected = 100 ether;
         uint256 actual = wPokt.balanceOf(alice);
         assertEq(expected, actual);
@@ -125,128 +353,23 @@ contract MintControllerTest is Test {
     }
 
     function testMintWrappedPocketLimitFail() public {
-        setCopperAddress();
         uint256 mintLimit = mintController.currentMintLimit();
         uint256 amountOverLimit = mintLimit + 1 ether;
-        vm.startPrank(copperAddress);
+        MintController.MintData memory mintData = buildMintData(alice, amountOverLimit, 1);
+        bytes[] memory signatures = buildSignaturesAsc(mintData);
         vm.expectRevert(MintController.OverMintLimit.selector);
-        mintController.mintWrappedPocket(alice, amountOverLimit, 1);
+        mintController.mintWrappedPocket(mintData, signatures);
     }
 
     function testMintWrappedPocketEvent() public {
-        setCopperAddress();
-        vm.startPrank(copperAddress);
+        MintController.MintData memory mintData = buildMintData(alice, 100 ether, 1);
+        bytes[] memory signatures = buildSignaturesAsc(mintData);
         vm.expectEmit(true, false, false, false);
         emit CurrentMintLimit(335_000 ether - 100 ether, block.timestamp);
-        mintController.mintWrappedPocket(alice, 100 ether, 1);
-    }
-
-    function testMintWrappedPocketAuthFail() public {
-        setCopperAddress();
-        vm.startPrank(DEVADDR);
-        vm.expectRevert(MintController.NonCopper.selector);
-        mintController.mintWrappedPocket(alice, 100 ether, 1);
-    }
-
-    function testBatchMintWrappedPocket() public {
-        setCopperAddress();
-        vm.startPrank(copperAddress);
-        address[] memory recipients = new address[](2);
-        recipients[0] = alice;
-        recipients[1] = bob;
-        uint256[] memory amounts = new uint256[](2);
-        amounts[0] = 100 ether;
-        amounts[1] = 100 ether;
-        uint256[] memory nonces = new uint256[](2);
-        nonces[0] = 1;
-        nonces[1] = 1;
-        mintController.batchMintWrappedPocket(recipients, amounts, nonces);
-        uint256 expected = 100 ether;
-        uint256 actual = wPokt.balanceOf(alice);
-        assertEq(expected, actual);
-        actual = wPokt.balanceOf(bob);
-        assertEq(expected, actual);
-    }
-
-    function testBatchMintWrappedPocketLimit() public {
-        setCopperAddress();
-        uint256 oldLimit = mintController.currentMintLimit();
-        vm.startPrank(copperAddress);
-        address[] memory recipients = new address[](2);
-        recipients[0] = alice;
-        recipients[1] = bob;
-        uint256[] memory amounts = new uint256[](2);
-        amounts[0] = 100 ether;
-        amounts[1] = 100 ether;
-        uint256[] memory nonces = new uint256[](2);
-        nonces[0] = 1;
-        nonces[1] = 1;
-        mintController.batchMintWrappedPocket(recipients, amounts, nonces);
-        uint256 expected = 100 ether;
-        uint256 actual = wPokt.balanceOf(alice);
-        assertEq(expected, actual);
-        actual = wPokt.balanceOf(bob);
-        assertEq(expected, actual);
-        expected = oldLimit - 200 ether;
-        actual = mintController.currentMintLimit();
-        assertEq(expected, actual);
-    }
-
-    function testBatchMintWrappedPocketLimitFail() public {
-        setCopperAddress();
-        uint256 mintLimit = mintController.currentMintLimit();
-        uint256 amountOverLimit = mintLimit + 1 ether;
-        vm.startPrank(copperAddress);
-        address[] memory recipients = new address[](2);
-        recipients[0] = alice;
-        recipients[1] = bob;
-        uint256[] memory amounts = new uint256[](2);
-        amounts[0] = amountOverLimit;
-        amounts[1] = 100 ether;
-        uint256[] memory nonces = new uint256[](2);
-        nonces[0] = 1;
-        nonces[1] = 1;
-        vm.expectRevert(MintController.OverMintLimit.selector);
-        mintController.batchMintWrappedPocket(recipients, amounts, nonces);
-    }
-
-    function testBatchMintWrappedPocketLimitFail2() public {
-        setCopperAddress();
-        uint256 mintLimit = mintController.currentMintLimit();
-        uint256 halfLimit = mintLimit / 2;
-        vm.startPrank(copperAddress);
-        address[] memory recipients = new address[](2);
-        recipients[0] = alice;
-        recipients[1] = bob;
-        uint256[] memory amounts = new uint256[](2);
-        amounts[0] = halfLimit + 10_000 ether;
-        amounts[1] = halfLimit + 10_000 ether;
-        uint256[] memory nonces = new uint256[](2);
-        nonces[0] = 1;
-        nonces[1] = 1;
-        vm.expectRevert(MintController.OverMintLimit.selector);
-        mintController.batchMintWrappedPocket(recipients, amounts, nonces);
-    }
-
-    function testBatchMintWrappedPocketEvent() public {
-        setCopperAddress();
-        vm.startPrank(copperAddress);
-        address[] memory recipients = new address[](2);
-        recipients[0] = alice;
-        recipients[1] = bob;
-        uint256[] memory amounts = new uint256[](2);
-        amounts[0] = 100 ether;
-        amounts[1] = 100 ether;
-        uint256[] memory nonces = new uint256[](2);
-        nonces[0] = 1;
-        nonces[1] = 1;
-        vm.expectEmit(true, false, false, false);
-        emit CurrentMintLimit(335_000 ether - 200 ether, block.timestamp);
-        mintController.batchMintWrappedPocket(recipients, amounts, nonces);
+        mintController.mintWrappedPocket(mintData, signatures);
     }
 
     function testSetMintCooldown() public {
-        setCopperAddress();
         vm.startPrank(DEVADDR);
         mintController.setMintCooldown(100_000 ether, 10 ether);
         uint256 expected = 100_000 ether;
@@ -258,7 +381,6 @@ contract MintControllerTest is Test {
     }
 
     function testSetMintCooldownEvent() public {
-        setCopperAddress();
         vm.startPrank(DEVADDR);
         vm.expectEmit(true, false, false, false);
         emit MintCooldownSet(100_000 ether, 10 ether);
@@ -266,17 +388,17 @@ contract MintControllerTest is Test {
     }
 
     function testSetMintCooldownFail() public {
-        setCopperAddress();
         vm.startPrank(alice);
         vm.expectRevert(MintController.NonAdmin.selector);
         mintController.setMintCooldown(100_000 ether, 10 ether);
     }
 
     function testFullCooldown() public {
-        setCopperAddress();
         vm.startPrank(copperAddress);
         uint256 mintLimit = mintController.currentMintLimit();
-        mintController.mintWrappedPocket(alice, mintLimit, 1);
+        MintController.MintData memory mintData = buildMintData(alice, mintLimit, 1);
+        bytes[] memory signatures = buildSignaturesAsc(mintData);
+        mintController.mintWrappedPocket(mintData, signatures);
         uint256 expected = 0;
         uint256 actual = mintController.currentMintLimit();
         assertEq(expected, actual);
@@ -287,10 +409,11 @@ contract MintControllerTest is Test {
     }
 
     function testPartialCooldown() public {
-        setCopperAddress();
         vm.startPrank(copperAddress);
         uint256 mintLimit = mintController.currentMintLimit();
-        mintController.mintWrappedPocket(alice, mintLimit, 1);
+        MintController.MintData memory mintData = buildMintData(alice, mintLimit, 1);
+        bytes[] memory signatures = buildSignaturesAsc(mintData);
+        mintController.mintWrappedPocket(mintData, signatures);
         uint256 expected = 0;
         uint256 actual = mintController.currentMintLimit();
         assertEq(expected, actual);
@@ -302,10 +425,11 @@ contract MintControllerTest is Test {
     }
 
     function testPartialCooldownMint() public {
-        setCopperAddress();
         vm.startPrank(copperAddress);
         uint256 mintLimit = mintController.currentMintLimit();
-        mintController.mintWrappedPocket(alice, mintLimit, 1);
+        MintController.MintData memory mintData = buildMintData(alice, mintLimit, 1);
+        bytes[] memory signatures = buildSignaturesAsc(mintData);
+        mintController.mintWrappedPocket(mintData, signatures);
         uint256 expected = 0;
         uint256 actual = mintController.currentMintLimit();
         assertEq(expected, actual);
@@ -314,7 +438,9 @@ contract MintControllerTest is Test {
         expected = mintPerSecond * 6 hours;
         actual = mintController.currentMintLimit();
         assertEq(expected, actual);
-        mintController.mintWrappedPocket(bob, expected, 1);
+        mintData = buildMintData(bob, expected, 1);
+        signatures = buildSignaturesAsc(mintData);
+        mintController.mintWrappedPocket(mintData, signatures);
         actual = wPokt.balanceOf(bob);
         assertEq(expected, actual);
     }

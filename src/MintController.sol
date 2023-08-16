@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
+import "openzeppelin-contracts/contracts/utils/cryptography/EIP712.sol";
+
 interface IWPokt {
     function batchMint(address[] calldata recipients, uint256[] calldata amounts, uint256[] calldata nonces) external;
 
@@ -9,7 +11,7 @@ interface IWPokt {
     function hasRole(bytes32 role, address account) external returns (bool);
 }
 
-contract MintController {
+contract MintController is EIP712 {
     /*//////////////////////////////////////////////////////////////
     // Immutable Storage
     //////////////////////////////////////////////////////////////*/
@@ -21,7 +23,9 @@ contract MintController {
     // State
     //////////////////////////////////////////////////////////////*/
 
-    address public copper;
+    mapping(address => bool) public validators;
+    uint256 public validatorCount;
+    uint256 public signerThreshold = 50; // out of 100
 
     uint256 private _currentMintLimit = 335_000 ether;
     uint256 public lastMint;
@@ -36,12 +40,25 @@ contract MintController {
     error OverMintLimit();
     error NonAdmin();
     error NonCopper();
+    error InvalidSignatureRatio();
+    error InvalidSignatures();
+    error NonZero();
+    error BelowMinThreshold();
 
     event MintCooldownSet(uint256 newLimit, uint256 newCooldown);
-    event NewCopper(address indexed newCopper);
+    event NewValidator(address indexed validator);
+    event RemovedValidator(address indexed validator);
     event CurrentMintLimit(uint256 indexed limit, uint256 indexed lastMint);
+    event SignerThresholdSet(uint256 indexed ratio);
 
-    constructor(address _wPokt) {
+    // Data object for signing and digest construction
+    struct MintData {
+        address recipient;
+        uint256 amount;
+        uint256 nonce;
+    }
+
+    constructor(address _wPokt) EIP712("MintController", "1") {
         wPokt = IWPokt(_wPokt);
     }
 
@@ -58,67 +75,49 @@ contract MintController {
         _;
     }
 
-    /// @dev Ensure the function is only called by Copper.
-    /// If caller is not Copper, throws an error message.
-    modifier onlyCopper() {
-        if (msg.sender != copper) {
-            revert NonCopper();
-        }
-        _;
-    }
-
     /*//////////////////////////////////////////////////////////////
     // Access Control
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Changes the Copper address.
+    /// @notice Adds a validator to the list of validators.
     /// @dev Can only be called by admin.
-    /// @param _copper The new Copper address to be set.
-    function setCopper(address _copper) external onlyAdmin {
-        copper = _copper;
-        emit NewCopper(_copper);
-    }
-
-    /// @notice Mints wrapped POKT tokens to a specific address.
-    /// @dev Can only be called by Copper.
-    /// If the amount to mint is more than the current mint limit, transaction is reverted.
-    /// @param recipient The address to receive the minted tokens.
-    /// @param amount The amount of tokens to mint.
-    /// @param nonce A unique identifier for this mint operation.
-    function mintWrappedPocket(address recipient, uint256 amount, uint256 nonce) external onlyCopper {
-
-        uint256 remainingMintable = _enforceMintLimit(amount);
-
-        wPokt.mint(recipient, amount, nonce);
-
-        emit CurrentMintLimit(remainingMintable, lastMint);
-    }
-
-    /// @notice Mints wrapped POKT tokens to a list of addresses.
-    /// @dev Can only be called by Copper.
-    /// If the total amount to mint is more than the current mint limit, transaction is reverted.
-    /// We don't check array length match because that happens at the token contract.
-    /// @param recipients The addresses to receive the minted tokens.
-    /// @param amounts The amounts of tokens to mint for each recipient.
-    /// @param nonces Unique identifiers for each mint operation.
-    function batchMintWrappedPocket(
-        address[] calldata recipients,
-        uint256[] calldata amounts,
-        uint256[] calldata nonces
-    ) external onlyCopper {
-        uint256 amountTotal;
-
-        for (uint256 i = 0; i < amounts.length;) {
-            amountTotal += amounts[i];
-            unchecked {
-                ++i;
-            }
+    /// Emits a NewValidator event upon successful addition.
+    /// @param validator The address of the validator to add.
+    function addValidator(address validator) external onlyAdmin {
+        if (validator == address(0)) {
+            revert NonZero();
         }
+        validators[validator] = true;
+        validatorCount++;
+        emit NewValidator(validator);
+    }
 
-        uint256 remainingMintable = _enforceMintLimit(amountTotal);
+    /// @notice Removes a validator from the list of validators.
+    /// @dev Can only be called by admin.
+    /// Emits a RemovedValidator event upon successful removal.
+    /// @param validator The address of the validator to remove.
+    function removeValidator(address validator) external onlyAdmin {
+        if (validatorCount - 1 < signerThreshold) {
+            revert BelowMinThreshold();
+        }
+        if (validator == address(0)) {
+            revert NonZero();
+        }
+        validators[validator] = false;
+        validatorCount--;
+        emit RemovedValidator(validator);
+    }
 
-        wPokt.batchMint(recipients, amounts, nonces);
-        emit CurrentMintLimit(remainingMintable, lastMint);
+    /// @notice Sets the signature ratio.
+    /// @dev Can only be called by admin.
+    /// Emits a SignerThresholdSet event upon successful setting.
+    /// @param signatureRatio The new signature ratio to set.
+    function setSignerThreshold(uint256 signatureRatio) external onlyAdmin {
+        if (signatureRatio > validatorCount || signatureRatio == 0) {
+            revert InvalidSignatureRatio();
+        }
+        signerThreshold = signatureRatio;
+        emit SignerThresholdSet(signatureRatio);
     }
 
     /// @notice Sets the mint limit and mint per second cooldown rate.
@@ -134,13 +133,63 @@ contract MintController {
     }
 
     /*//////////////////////////////////////////////////////////////
+    // Mutative Public Functions
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Mint wrapped POKT tokens to a specific address with a signature.
+    /// @dev Can be called by anyone
+    /// If the amount to mint is more than the current mint limit, transaction is reverted.
+    /// @param data The mint data to be verified.
+    /// @param signatures The signatures to be verified.
+    function mintWrappedPocket(MintData calldata data, bytes[] calldata signatures) external {
+
+        if (_verify(data, signatures) == false) {
+            revert InvalidSignatures();
+        }
+        
+        uint256 remainingMintable = _enforceMintLimit(data.amount);
+        wPokt.mint(data.recipient, data.amount, data.nonce);
+        emit CurrentMintLimit(remainingMintable, lastMint);
+    }
+
+    /*//////////////////////////////////////////////////////////////
     // Internal Functions
     //////////////////////////////////////////////////////////////*/
 
+    /// @notice Verifies the mint data signature.
+    /// @dev internal function to be called by mintWithSignature.
+    /// @param _data The mint data to be verified.
+    /// @param _signatures The signatures to be verified.
+    /// @return True if the signatures are valid, false otherwise.
+    function _verify(MintData calldata _data, bytes[] calldata _signatures) internal view returns (bool) {
+        bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(
+                keccak256("MintData(address recipient,uint256 amount,uint256 nonce)"),
+                _data.recipient,
+                _data.amount,
+                _data.nonce
+            )));
+
+        address lastSigner;
+        address currentSigner;
+
+        uint256 validSignatures = 0;
+
+        for (uint256 i = 0; i < _signatures.length; i++) {
+            currentSigner = ECDSA.recover(digest, _signatures[i]);
+            if (validators[currentSigner] && currentSigner > lastSigner) {
+                validSignatures++;
+                lastSigner = currentSigner;
+            }
+        }
+
+        return validSignatures > 0 && validSignatures >= signerThreshold;
+    }
+
+
     /// @dev Updates the mint limit based on the cooldown mechanism.
-    /// @param amount The amount of tokens to mint.
+    /// @param _amount The amount of tokens to mint.
     /// @return The updated mint limit.
-    function _enforceMintLimit(uint256 amount) internal returns (uint256) {
+    function _enforceMintLimit(uint256 _amount) internal returns (uint256) {
 
         uint256 timePassed = block.timestamp - lastMint;
         uint256 mintableFromCooldown = timePassed * mintPerSecond;
@@ -148,22 +197,22 @@ contract MintController {
         uint256 maxMintable = maxMintLimit;
 
         // We enforce that amount is not greater than the maximum mint or the current allowed by cooldown
-        if (amount > mintableFromCooldown + previousMintLimit || amount > maxMintable) {
+        if (_amount > mintableFromCooldown + previousMintLimit || _amount > maxMintable) {
             revert OverMintLimit();
         }
 
         // If the cooldown has fully recovered; we are allowed to mint up to the maximum amount
         if (previousMintLimit + mintableFromCooldown >= maxMintable) {
-            _currentMintLimit = maxMintable - amount;
+            _currentMintLimit = maxMintable - _amount;
             lastMint = block.timestamp;
-            return maxMintable - amount;
+            return maxMintable - _amount;
 
         // Otherwise the cooldown has not fully recovered; we are allowed to mint up to the recovered amount
         } else {
             uint256 mintable = previousMintLimit + mintableFromCooldown;
-            _currentMintLimit = mintable - amount;
+            _currentMintLimit = mintable - _amount;
             lastMint = block.timestamp;
-            return mintable - amount;
+            return mintable - _amount;
         }
     }
 
