@@ -79,8 +79,6 @@ contract MintController is EIP712 {
     // Access Control
     //////////////////////////////////////////////////////////////*/
 
-
-
     /// @notice Adds a validator to the list of validators.
     /// @dev Can only be called by admin.
     /// Emits a NewValidator event upon successful addition.
@@ -122,6 +120,22 @@ contract MintController is EIP712 {
         emit SignerThresholdSet(signatureRatio);
     }
 
+    /// @notice Sets the mint limit and mint per second cooldown rate.
+    /// @dev Can only be called by admin.
+    /// Emits a MintCooldownSet event upon successful setting.
+    /// @param newLimit The new mint limit to set.
+    /// @param newMintPerSecond The new mint per second cooldown rate to set.
+    function setMintCooldown(uint256 newLimit, uint256 newMintPerSecond) external onlyAdmin {
+        maxMintLimit = newLimit;
+        mintPerSecond = newMintPerSecond;
+
+        emit MintCooldownSet(newLimit, newMintPerSecond);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+    // Mutative Public Functions
+    //////////////////////////////////////////////////////////////*/
+
     /// @notice Mint wrapped POKT tokens to a specific address with a signature.
     /// @dev Can be called by anyone
     /// If the amount to mint is more than the current mint limit, transaction is reverted.
@@ -136,18 +150,6 @@ contract MintController is EIP712 {
         uint256 remainingMintable = _enforceMintLimit(data.amount);
         wPokt.mint(data.recipient, data.amount, data.nonce);
         emit CurrentMintLimit(remainingMintable, lastMint);
-    }
-
-    /// @notice Sets the mint limit and mint per second cooldown rate.
-    /// @dev Can only be called by admin.
-    /// Emits a MintCooldownSet event upon successful setting.
-    /// @param newLimit The new mint limit to set.
-    /// @param newMintPerSecond The new mint per second cooldown rate to set.
-    function setMintCooldown(uint256 newLimit, uint256 newMintPerSecond) external onlyAdmin {
-        maxMintLimit = newLimit;
-        mintPerSecond = newMintPerSecond;
-
-        emit MintCooldownSet(newLimit, newMintPerSecond);
     }
 
     /*//////////////////////////////////////////////////////////////
