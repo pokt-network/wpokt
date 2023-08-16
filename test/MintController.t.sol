@@ -258,6 +258,12 @@ contract MintControllerTest is Test {
         mintController.addValidator(address(0));
     }
 
+    function testAddValidatorInvalidAddValidatorFail() public {
+        vm.startPrank(DEVADDR);
+        vm.expectRevert(MintController.InvalidAddValidator.selector);
+        mintController.addValidator(validAddressAsc[0]);
+    }
+
     function testAddValidatorNewValidatorEvent() public {
         vm.startPrank(DEVADDR);
         vm.expectEmit(true, false, false, false);
@@ -274,7 +280,7 @@ contract MintControllerTest is Test {
         assertEq(expected, actual);
     }
 
-    function testRemoveValidatorNonZero() public {
+    function testRemoveValidatorNonZeroFail() public {
         vm.startPrank(DEVADDR);
         vm.expectRevert(MintController.NonZero.selector);
         mintController.removeValidator(address(0));
@@ -288,6 +294,13 @@ contract MintControllerTest is Test {
         vm.expectRevert(MintController.BelowMinThreshold.selector);
         mintController.removeValidator(validAddressAsc[3]);
     }
+
+    function testRemoveValidatorInvalidRemoveValidator() public {
+        vm.startPrank(DEVADDR);
+        mintController.removeValidator(validAddressDesc[0]);
+        vm.expectRevert(MintController.InvalidRemoveValidator.selector);
+        mintController.removeValidator(validAddressDesc[0]);
+}
 
     function testRemoveValidatorNonAdminFail() public {
         vm.startPrank(alice);

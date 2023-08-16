@@ -39,9 +39,10 @@ contract MintController is EIP712 {
 
     error OverMintLimit();
     error NonAdmin();
-    error NonCopper();
     error InvalidSignatureRatio();
     error InvalidSignatures();
+    error InvalidRemoveValidator();
+    error InvalidAddValidator();
     error NonZero();
     error BelowMinThreshold();
 
@@ -87,6 +88,9 @@ contract MintController is EIP712 {
         if (validator == address(0)) {
             revert NonZero();
         }
+        if (validators[validator] == true) {
+            revert InvalidAddValidator();
+        }
         validators[validator] = true;
         validatorCount++;
         emit NewValidator(validator);
@@ -102,6 +106,9 @@ contract MintController is EIP712 {
         }
         if (validator == address(0)) {
             revert NonZero();
+        }
+        if (validators[validator] == false) {
+            revert InvalidRemoveValidator();
         }
         validators[validator] = false;
         validatorCount--;
