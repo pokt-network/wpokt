@@ -54,7 +54,7 @@ contract WrappedPocket is ERC20, ERC20Burnable, Pausable, AccessControl, ERC20Pe
      * @param amount The amount of tokens to burn.
      * @param poktAddress The recipient address on the Pocket blockchain.
      */
-    function burnAndBridge(uint256 amount, address poktAddress) public {
+    function burnAndBridge(uint256 amount, address poktAddress) public whenNotPaused {
         _burn(msg.sender, amount);
         emit BurnAndBridge(amount, poktAddress, msg.sender);
     }
@@ -84,7 +84,7 @@ contract WrappedPocket is ERC20, ERC20Burnable, Pausable, AccessControl, ERC20Pe
      * @param amount The amount of tokens to mint.
      * @param nonce The nonce associated with the address.
      */
-    function mint(address to, uint256 amount, uint256 nonce) public onlyRole(MINTER_ROLE) {
+    function mint(address to, uint256 amount, uint256 nonce) public onlyRole(MINTER_ROLE) whenNotPaused {
         uint256 currentNonce = _userNonces[to];
 
         if (nonce != currentNonce + 1) {
@@ -110,20 +110,29 @@ contract WrappedPocket is ERC20, ERC20Burnable, Pausable, AccessControl, ERC20Pe
     function batchMint(address[] calldata to, uint256[] calldata amount, uint256[] calldata nonce)
         public
         onlyRole(MINTER_ROLE)
+        whenNotPaused
     {
-        if (to.length != amount.length || to.length != nonce.length) {
+        uint256 toLength = to.length;
+
+        if (toLength != amount.length || toLength != nonce.length) {
             revert BatchMintLength();
         }
 
         if (feeFlag == true) {
             uint256[] memory adjustedAmounts = _batchCollectFee(amount);
 
-            for (uint256 i = 0; i < to.length; i++) {
+            for (uint256 i; i < toLength;) {
                 _mintBatch(to[i], adjustedAmounts[i], nonce[i]);
+                unchecked {
+                    ++i;
+                }
             }
         } else {
-            for (uint256 i = 0; i < to.length; i++) {
+            for (uint256 i; i < toLength;) {
                 _mintBatch(to[i], amount[i], nonce[i]);
+                unchecked {
+                    ++i;
+                }
             }
         }
     }
@@ -197,13 +206,17 @@ contract WrappedPocket is ERC20, ERC20Burnable, Pausable, AccessControl, ERC20Pe
         uint256 totalFee;
         uint256[] memory adjustedAmounts = new uint256[](amounts.length);
 
-        for (uint256 i = 0; i < amounts.length; i++) {
+        uint256 amountLength = amounts.length;
+        for (uint256 i; i < amountLength;) {
             if (amounts[i] % BASIS_POINTS != 0) {
                 revert FeeBasisDust();
             }
             fee = (amounts[i] * feeBasis) / BASIS_POINTS;
             adjustedAmounts[i] = amounts[i] - fee;
             totalFee += fee;
+            unchecked {
+                ++i;
+            }
         }
 
         _mint(feeCollector, totalFee);
