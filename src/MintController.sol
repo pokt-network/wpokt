@@ -156,11 +156,10 @@ contract MintController is EIP712 {
     /// @param data The mint data to be verified.
     /// @param signatures The signatures to be verified.
     function mintWrappedPocket(MintData calldata data, bytes[] calldata signatures) external {
-
         if (_verify(data, signatures) == false) {
             revert InvalidSignatures();
         }
-        
+
         uint256 remainingMintable = _enforceMintLimit(data.amount);
         wPokt.mint(data.recipient, data.amount, data.nonce);
         emit CurrentMintLimit(remainingMintable, lastMint);
@@ -176,12 +175,16 @@ contract MintController is EIP712 {
     /// @param _signatures The signatures to be verified.
     /// @return True if the signatures are valid, false otherwise.
     function _verify(MintData calldata _data, bytes[] calldata _signatures) internal view returns (bool) {
-        bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(
-                keccak256("MintData(address recipient,uint256 amount,uint256 nonce)"),
-                _data.recipient,
-                _data.amount,
-                _data.nonce
-            )));
+        bytes32 digest = _hashTypedDataV4(
+            keccak256(
+                abi.encode(
+                    keccak256("MintData(address recipient,uint256 amount,uint256 nonce)"),
+                    _data.recipient,
+                    _data.amount,
+                    _data.nonce
+                )
+            )
+        );
 
         address lastSigner;
         address currentSigner;
@@ -203,12 +206,10 @@ contract MintController is EIP712 {
         return validSignatures > 0 && validSignatures >= signerThreshold;
     }
 
-
     /// @dev Updates the mint limit based on the cooldown mechanism.
     /// @param _amount The amount of tokens to mint.
     /// @return The updated mint limit.
     function _enforceMintLimit(uint256 _amount) internal returns (uint256) {
-
         uint256 timePassed = block.timestamp - lastMint;
         uint256 mintableFromCooldown = timePassed * mintPerSecond;
         uint256 previousMintLimit = _currentMintLimit;
@@ -225,7 +226,7 @@ contract MintController is EIP712 {
             lastMint = block.timestamp;
             return maxMintable - _amount;
 
-        // Otherwise the cooldown has not fully recovered; we are allowed to mint up to the recovered amount
+            // Otherwise the cooldown has not fully recovered; we are allowed to mint up to the recovered amount
         } else {
             uint256 mintable = previousMintLimit + mintableFromCooldown;
             _currentMintLimit = mintable - _amount;

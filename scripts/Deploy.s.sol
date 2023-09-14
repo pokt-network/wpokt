@@ -71,7 +71,7 @@ contract Deploy is Script {
 
             wpokt.grantRole(pauserRole, config.admin);
 
-            wpokt.renounceRole(defaultAdminRole, address(this));
+            wpokt.renounceRole(defaultAdminRole, msg.sender);
         }
 
         vm.stopBroadcast();

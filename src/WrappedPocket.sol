@@ -8,7 +8,6 @@ import "openzeppelin-contracts/contracts/access/AccessControl.sol";
 import "openzeppelin-contracts/contracts/token/ERC20/extensions/ERC20Permit.sol";
 
 contract WrappedPocket is ERC20, ERC20Burnable, Pausable, AccessControl, ERC20Permit {
-
     /*//////////////////////////////////////////////////////////////
     // Immutable storage
     //////////////////////////////////////////////////////////////*/

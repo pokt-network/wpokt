@@ -6,7 +6,6 @@ import "../src/WrappedPocket.sol";
 import "../src/MintController.sol";
 
 contract MintControllerTest is Test {
-
     WrappedPocket public wPokt;
     MintController public mintController;
 
@@ -108,7 +107,11 @@ contract MintControllerTest is Test {
         }
     }
 
-    function buildMintData(address recipient, uint256 amount, uint256 nonce) public pure returns (MintController.MintData memory) {
+    function buildMintData(address recipient, uint256 amount, uint256 nonce)
+        public
+        pure
+        returns (MintController.MintData memory)
+    {
         return MintController.MintData(recipient, amount, nonce);
     }
 
@@ -139,26 +142,42 @@ contract MintControllerTest is Test {
         return ECDSA.toTypedDataHash(_cachedDomainSeparator, structHash);
     }
 
-    function buildSignatureAsc(MintController.MintData memory data, uint256 signerIndex) public view returns (bytes memory) {
-        bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(
-                keccak256("MintData(address recipient,uint256 amount,uint256 nonce)"),
-                data.recipient,
-                data.amount,
-                data.nonce
-            )));
+    function buildSignatureAsc(MintController.MintData memory data, uint256 signerIndex)
+        public
+        view
+        returns (bytes memory)
+    {
+        bytes32 digest = _hashTypedDataV4(
+            keccak256(
+                abi.encode(
+                    keccak256("MintData(address recipient,uint256 amount,uint256 nonce)"),
+                    data.recipient,
+                    data.amount,
+                    data.nonce
+                )
+            )
+        );
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privKeyAsc[signerIndex], digest);
         bytes memory signature = abi.encodePacked(r, s, v);
         return signature;
     }
 
-    function buildSignatureDesc(MintController.MintData memory data, uint256 signerIndex) public view returns (bytes memory) {
-        bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(
-                keccak256("MintData(address recipient,uint256 amount,uint256 nonce)"),
-                data.recipient,
-                data.amount,
-                data.nonce
-            )));
+    function buildSignatureDesc(MintController.MintData memory data, uint256 signerIndex)
+        public
+        view
+        returns (bytes memory)
+    {
+        bytes32 digest = _hashTypedDataV4(
+            keccak256(
+                abi.encode(
+                    keccak256("MintData(address recipient,uint256 amount,uint256 nonce)"),
+                    data.recipient,
+                    data.amount,
+                    data.nonce
+                )
+            )
+        );
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privKeyDesc[signerIndex], digest);
         bytes memory signature = abi.encodePacked(r, s, v);
@@ -300,7 +319,7 @@ contract MintControllerTest is Test {
         mintController.removeValidator(validAddressDesc[0]);
         vm.expectRevert(MintController.InvalidRemoveValidator.selector);
         mintController.removeValidator(validAddressDesc[0]);
-}
+    }
 
     function testRemoveValidatorNonAdminFail() public {
         vm.startPrank(alice);
@@ -457,5 +476,4 @@ contract MintControllerTest is Test {
         actual = wPokt.balanceOf(bob);
         assertEq(expected, actual);
     }
-
 }
