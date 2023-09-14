@@ -118,17 +118,10 @@ async function deploy() {
     gasPrice: `${gasPrice / 1e9} gwei`,
     totalGasCost: `${(totalGasUsed * gasPrice) / 1e18} ETH`,
     timestamp: new Date(Date.now()).toUTCString(),
-    commitRef: commitId,
+    commitRef: commitId.trim(),
   };
 
-  console.log(
-    `\nWrappedPocket contract address: ${wrappedPocketContractAddress}`
-  );
-  console.log(
-    `MintController contract address: ${mintControllerContractAddress}`
-  );
-  console.log("Block number: ", contractData.blockNumber);
-  console.log("Total gas used: ", contractData.cumulativeGasUsed);
+  console.log(JSON.stringify(contractData, null, 2));
 
   saveContractData(targetNetwork, contractData);
 

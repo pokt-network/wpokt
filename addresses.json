@@ -1,0 +1,14 @@
+{
+  "goerli": [
+    {
+      "MintController": "0x488076715Eb6042Bf8Fc5C6cA82CDB630225f1F5",
+      "WrappedPocket": "0x909ef0b6cF52B7cB2B3390F7e8147997E3A2E52D",
+      "blockNumber": "9693332",
+      "totalGasUsed": "4091743 gas",
+      "gasPrice": "3.000000013 gwei",
+      "totalGasCost": "0.01227522905319266 ETH",
+      "timestamp": "Thu, 14 Sep 2023 12:21:51 GMT",
+      "commitRef": "8f1c00a"
+    }
+  ]
+}
