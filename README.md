@@ -1,4 +1,3 @@
-# Halborn Audit:
 # WrappedPocket Contract
 
 The WrappedPocket contract is a smart contract for the Ethereum blockchain written in Solidity, it inherits functionalities from the ERC20, ERC20Burnable, Pausable, AccessControl, and ERC20Permit contracts from the OpenZeppelin library.
