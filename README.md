@@ -1,21 +1,4 @@
 # Halborn Audit:
-
-[The following contracts are in scope for the Halborn audit:](https://github.com/St4rgarden/wpokt/tree/audit/src)
-- MintController.sol
-- WrappedPocket.sol
-
-The repo is fully public so you should be able to fork freely without special permissions.
-
-Below you will find quite robust documentation on the wPOKT contracts.  The code is well commented including natspec requirements.
-
-## Overview
-
-The two contracts in this repository include all of the necessary functionality to enable a wrapped version of the POKT token to be seamlessly bridged from the Pocket Network Blockchain.  WrappedPocket is an ERC20 token which can be minted by transferring POKT tokens into a special address on the POKT Network.  Our backend detects successful transfers to this address; and mints new wPOKT tokens to the address indicated by the memo of the Pocket Network transaction.  The reverse is also true; wPOKT can be burned by user's - and during that transaction the user indicates a POKT network address; and the backend is responsible for then transferring the POKT tokens on the Pocket Blockchain to that indicated address.
-
-The only addresses which are able to initiate minting wPOKT tokens; are ones which have already been granted the AccessControl role "MINTER_ROLE".  The permissioning is core to the WrappedPocket contract; but the implementation of minting has been outsourced to a second contract for future extensibility.
-
-MintController is a multi-signatory contract that requires valid signatures from our validator set.  It utilizes the AccessControl data from WrappedPocket; rather than having it's own access control.  It also has a limit on the amount of wPOKT tokens which can be minted over a given time period.
-
 # WrappedPocket Contract
 
 The WrappedPocket contract is a smart contract for the Ethereum blockchain written in Solidity, it inherits functionalities from the ERC20, ERC20Burnable, Pausable, AccessControl, and ERC20Permit contracts from the OpenZeppelin library.
