@@ -45,6 +45,7 @@ contract MintController is EIP712 {
     error InvalidAddValidator();
     error NonZero();
     error BelowMinThreshold();
+    error InvalidCooldownConfig();
 
     event MintCooldownSet(uint256 newLimit, uint256 newCooldown);
     event NewValidator(address indexed validator);
@@ -60,6 +61,9 @@ contract MintController is EIP712 {
     }
 
     constructor(address _wPokt) EIP712("MintController", "1") {
+        if (_wPokt == address(0)) {
+            revert NonZero();
+        }
         wPokt = IWPokt(_wPokt);
     }
 
@@ -120,7 +124,7 @@ contract MintController is EIP712 {
     /// Emits a SignerThresholdSet event upon successful setting.
     /// @param signatureRatio The new signature ratio to set.
     function setSignerThreshold(uint256 signatureRatio) external onlyAdmin {
-        if (signatureRatio > validatorCount || signatureRatio == 0) {
+        if (signatureRatio > validatorCount || signatureRatio == 0 || validatorCount / 2 > signatureRatio) {
             revert InvalidSignatureRatio();
         }
         signerThreshold = signatureRatio;
@@ -133,6 +137,9 @@ contract MintController is EIP712 {
     /// @param newLimit The new mint limit to set.
     /// @param newMintPerSecond The new mint per second cooldown rate to set.
     function setMintCooldown(uint256 newLimit, uint256 newMintPerSecond) external onlyAdmin {
+        if (newLimit < mintPerSecond) {
+            revert InvalidCooldownConfig();
+        }
         maxMintLimit = newLimit;
         mintPerSecond = newMintPerSecond;
 
@@ -180,12 +187,16 @@ contract MintController is EIP712 {
         address currentSigner;
 
         uint256 validSignatures = 0;
+        uint256 signatureLength = _signatures.length;
 
-        for (uint256 i = 0; i < _signatures.length; i++) {
+        for (uint256 i; i < signatureLength;) {
             currentSigner = ECDSA.recover(digest, _signatures[i]);
             if (validators[currentSigner] && currentSigner > lastSigner) {
                 validSignatures++;
                 lastSigner = currentSigner;
+            }
+            unchecked {
+                ++i;
             }
         }
 
