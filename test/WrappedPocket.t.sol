@@ -5,7 +5,6 @@ import "forge-std/Test.sol";
 import "../src/WrappedPocket.sol";
 
 contract WrappedPocketTest is Test {
-
     WrappedPocket public wPokt;
 
     address internal constant alice = address(0xAAAA);
@@ -449,5 +448,4 @@ contract WrappedPocketTest is Test {
         wPokt.burnAndBridge(100000000, bobPocket);
         vm.stopPrank();
     }
-
 }
