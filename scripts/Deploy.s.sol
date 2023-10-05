@@ -19,6 +19,7 @@ contract Deploy is Script {
     constructor() {
         chainIdToNetworkConfig[31337] = getAnvilEthConfig();
         chainIdToNetworkConfig[5] = getGoerliEthConfig();
+        chainIdToNetworkConfig[1] = getMainnetEthConfig();
 
         config = chainIdToNetworkConfig[block.chainid];
     }
@@ -42,6 +43,24 @@ contract Deploy is Script {
             validators: validators,
             signerThreshold: 2,
             admin: address(0x3ef8D010f76dc42e7479CF5A914ae45AdE76eb32)
+        });
+    }
+
+    function getMainnetEthConfig() internal pure returns (NetworkConfig memory mainnetNetworkConfig) {
+        address[] memory validators = new address[](7);
+
+        validators[0] = address(0xBE9210d6b7A96AabcBA54ced1dC34dA7DdC4c931);
+        validators[1] = address(0xDD1A209a52dA5a98F61c85e7Add9f4f2AAfa4d37);
+        validators[2] = address(0x96383b08dAFD38e05566Cd6941881a503aFBFc85);
+        validators[3] = address(0x974AF2Ea43b329ef27BEe5A9D8e5AF02bF4D58fB);
+        validators[4] = address(0x754fFD7817E391A16c8d141029823a18e025404C);
+        validators[5] = address(0x12E08268e155756012BD10163417BD04ECd22b3b);
+        validators[6] = address(0x7Bf50970669D5c9fD3a8F7079C495D1Cc1C157aD);
+
+        mainnetNetworkConfig = NetworkConfig({
+            validators: validators,
+            signerThreshold: 5,
+            admin: address(0x2f16615234827eE4dF14d02d40C24E6a258dD360)
         });
     }
 
